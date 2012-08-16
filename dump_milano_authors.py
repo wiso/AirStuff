@@ -84,7 +84,7 @@ def main(html, url):
 
     logging.info("parsing txt")
 
-    m = re.search("([0-9]+).*?\(([ab])\)Dipartimento di Fisica, Universit`a di Milano, Milano", text)
+    m = re.search("([0-9]+).*?\(([ab])\)Dipartimento di Fisica, Universit ?`a di Milano, Milano", text)
     if m is None:
         logging.error("Cannot find Milano in this paper")
         exit()
