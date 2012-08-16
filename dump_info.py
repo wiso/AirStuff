@@ -5,11 +5,6 @@ __author__ = "Ruggero Turra"
 __email__ = "ruggero.turra@mi.infn.it"
 
 import logging
-import StringIO
-import urllib2
-import os.path
-import re
-import sys
 
 from common import get_html
 import dump_milano_authors
