@@ -11,7 +11,7 @@ from common import get_html
 
 logging.basicConfig(level=logging.INFO)
 
-re_abstract = re.compile('<blockquote class="abstract">.+?</span>(.+?)</blockquote>',
+re_abstract = re.compile('<blockquote class="abstract.*?">.+?</span>(.+?)</blockquote>',
                          re.DOTALL)
 
 def get_abstract(html):
