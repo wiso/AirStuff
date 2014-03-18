@@ -84,10 +84,10 @@ def main(arxiv_number):
 
     ftext = open("text", "w")
     ftext.write(text)
-
     logging.info("parsing txt")
 
-    m = re.search("([0-9]+).*?\(([ab])\) ?Dipartimento di Fisica, Universit ?`a di Milano, Milano", text)
+    m = re.search("([0-9]+).*?\(([ab])\) ?Dipartimento\sdi\sFisica,\sUniversit ?`a\sdi\sMilano,\sMilano", text)
+
     if m is None:
         logging.error("Cannot find Milano in this paper")
         exit()
