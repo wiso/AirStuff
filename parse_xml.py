@@ -81,7 +81,7 @@ def get_authors(xml_dict):
 
 if __name__ == "__main__":
     from optparse import OptionParser
-    parser = OptionParser(usage="usage: %prog inspire_number")
+    parser = OptionParser(usage="usage: %prog inspire_url")
     parser.epilog = "example: python dump_milano_authors.py http://inspirehep.net/record/1240088"
     parser.add_option("--institution", type=str, default="Milan U", help="which institution you want to find. Default = 'Milan U'")
     (options, args) = parser.parse_args()
