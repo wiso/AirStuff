@@ -1,6 +1,6 @@
-from common import get_html
 import logging
 logging.basicConfig(level=logging.INFO)
+import re
 
 try:
     import xmltodict
@@ -12,19 +12,50 @@ su
 pip install xmltodict
 """
 
+from common import get_html
+import dump_keyword
 
-def main(inspire_number):
+
+def main(html_inspire, default_institution):
+    m = re.search(r"/([0-9]+)", html_inspire)
+    if m is None:
+        raise ValueError("not valid html")
+    inspire_number = m.group(1)
     url = "http://inspirehep.net/record/{0}/export/xn".format(inspire_number)
     xml = get_html(url)
     doc = xmltodict.parse(xml)
 
     authors = get_authors(doc)
-    print "found %d authors" % len(authors)
-    milan_authors = [author for author in authors if ("Milan U" in " ".join(author[2]))]
 
-    print "=" * 10  + " MILANO AUTHORS " + "=" * 10
+    authors = sorted(authors, key=lambda x: x[0])
+    print "\n" + "=" * 10 + " ALL AUTHORS " + "=" * 10
+    print ", ".join(["%s %s" % (a[0], a[1]) for a in authors])
+
+    print "\n found %d authors" % len(authors)
+    milan_authors = [author for author in authors if (default_institution in " ".join(author[2]))]
+
+    print "\n" + "=" * 10 + (" %s AUTHORS " % default_institution) + "=" * 10
     for ma in milan_authors:
         print "%s %s" % (ma[0], ma[1])
+
+    print "\n" + "=" * 10 + " TITLE " + "=" * 10
+    print get_title(doc)
+
+    print "\n" + "=" * 10 + " ABSTRACT " + "=" * 10
+    print get_abstract(doc)
+
+    print "\n===== KEYWORKDS ======\n"
+    keys = dump_keyword.get_keys_from_html(get_html(html_inspire))
+    print keys
+
+def get_abstract(xml_dict):
+    return xml_dict['articles']['article']['front']['abstract']
+
+
+def get_title(xml_dict):
+    meta = xml_dict['articles']['article']['front']['article-meta']
+    title = meta['title-group']['article-title']
+    return title
 
 
 def get_authors(xml_dict):
@@ -33,7 +64,7 @@ def get_authors(xml_dict):
     meta = xml_dict['articles']['article']['front']['article-meta']
     title = meta['title-group']['article-title']
     contrib = meta['contrib-group']['contrib']
-    for c in contrib[10:]:
+    for c in contrib:
         author_institutions = []
         aff = c["aff"]
         if len(aff) == 1:
@@ -51,11 +82,12 @@ def get_authors(xml_dict):
 if __name__ == "__main__":
     from optparse import OptionParser
     parser = OptionParser(usage="usage: %prog inspire_number")
-    parser.epilog = "example: python dump_milano_authors.py 1240088"
+    parser.epilog = "example: python dump_milano_authors.py http://inspirehep.net/record/1240088"
+    parser.add_option("--institution", type=str, default="Milan U", help="which institution you want to find. Default = 'Milan U'")
     (options, args) = parser.parse_args()
 
     if len(args) != 1:
         logging.error("you have to specify the inspire url")
         exit()
 
-    main(args[0])
+    main(args[0], options.institution)
