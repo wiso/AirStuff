@@ -16,6 +16,22 @@ from common import get_html
 import dump_keyword
 
 
+def format_name(author):
+    name = author[1]
+    surname = author[0]
+    names = name.split()
+    initials = "".join(["%s." % n[0] for n in names])
+    return "%s %s" % (initials, surname)
+
+
+def format_name_italian(author):
+    name = author[1]
+    surname = author[0]
+    names = name.split()
+    initials = "".join(["%s." % n[0] for n in names])
+    return "%s, %s" % (surname, name)
+
+
 def main(html_inspire, default_institution):
     m = re.search(r"/([0-9]+)", html_inspire)
     if m is None:
@@ -27,16 +43,14 @@ def main(html_inspire, default_institution):
 
     authors = get_authors(doc)
 
-    authors = sorted(authors, key=lambda x: x[0])
     print "\n" + "=" * 10 + " ALL AUTHORS " + "=" * 10
-    print ", ".join(["%s %s" % (a[0], a[1]) for a in authors])
+    print ", ".join(map(format_name, authors))
 
     print "\n found %d authors" % len(authors)
     milan_authors = [author for author in authors if (default_institution in " ".join(author[2]))]
 
     print "\n" + "=" * 10 + (" %s AUTHORS " % default_institution) + "=" * 10
-    for ma in milan_authors:
-        print "%s %s" % (ma[0], ma[1])
+    print "\n".join(map(format_name_italian, milan_authors))
 
     print "\n" + "=" * 10 + " TITLE " + "=" * 10
     print get_title(doc)
@@ -47,6 +61,7 @@ def main(html_inspire, default_institution):
     print "\n===== KEYWORKDS ======\n"
     keys = dump_keyword.get_keys_from_html(get_html(html_inspire))
     print keys
+
 
 def get_abstract(xml_dict):
     return xml_dict['articles']['article']['front']['abstract']
