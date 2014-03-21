@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 
+#mac cmd = 'echo %s | tr -d "\n" | pbcopy' % str
+# os.system(cmd)
+#linux 
+
 __doc__ = "simple tool to dump the Milano author list"
 __author__ = "Ruggero Turra"
 __email__ = "ruggero.turra@mi.infn.it"
@@ -85,7 +89,7 @@ def main(arxiv_number):
     ftext = open("text", "w")
     ftext.write(text)
     logging.info("parsing txt")
-
+#    print text
     m = re.search("([0-9]+).*?\(([ab])\) ?Dipartimento\sdi\sFisica,\sUniversit ?`a\sdi\sMilano,\sMilano", text)
 
     if m is None:
@@ -94,8 +98,13 @@ def main(arxiv_number):
     milano_tag = m.group(1) + m.group(2)
     logging.info("found milano tag: %s", milano_tag)
     authors = re.findall("([A-Za-z\. ]+)[0-9ab,]*?" + milano_tag, text)
+#    all_authors = re.findall("((?:[A-Z]\.)+ [A-Z][\w ]+)[0-9]+[abcdef]* [\.,]", text, re.UNICODE)
+#    all_authors = re.findall("((?:[A-Z]\.)+ [^0-9]+?)[0-9]+[abcdef]*(?: ,| \.)", text, re.UNICODE)
 
-    logging.info("found %d authors", len(authors))
+
+#    print ", ".join([author.strip() for author in all_authors])
+#    print len(all_authors)
+ #   logging.info("found %d authors", len(authors))
     return [author.strip() for author in authors]
 
 
@@ -110,3 +119,11 @@ if __name__ == "__main__":
         exit()
 
     print "\n".join(main(args[0]))
+
+"""
+(2005), [arXiv:hep-ph/0508020].
+
+The ATLAS Collaboration
+
+G. Aad48 , T. Aba jyan21 , A.B. Pippo32 , B. Abbott112 , J. Abdallah12 , S. Abdel Khalek116 , O. Abdinov11 , R. Aben106 , B. Abi113 ,
+"""
