@@ -86,12 +86,18 @@ def get_authors(xml_dict):
     contrib = meta['contrib-group']['contrib']
     for c in contrib:
         author_institutions = []
-        aff = c["aff"]
-        if len(aff) == 1:
-            author_institutions.append(aff["institution"])
-        else:
-            for a in aff:
-                author_institutions.append(a["institution"])
+        try:
+            aff = c["aff"]
+            if len(aff) == 1:
+                author_institutions.append(aff["institution"])
+            else:
+                for a in aff:
+                    author_institutions.append(a["institution"])
+
+        except KeyError:
+            logging.warning("author %s %s has no institution, check manually" % (c["name"]["surname"], c["name"]["given-names"]))
+            author_intitutions = ["unknown"]
+                        
 
         authors.append((c["name"]["surname"],
                         c["name"]["given-names"],
