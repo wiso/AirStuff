@@ -187,7 +187,7 @@ class Application(Frame):
 if __name__ == "__main__":
     from optparse import OptionParser
     parser = OptionParser(usage="usage: %prog inspire_url")
-    parser.epilog = "example: parse_xml.py http://inspirehep.net/record/1240088"
+    parser.epilog = "example: parse_inspire.py http://inspirehep.net/record/1240088"
     parser.add_option("--institution", type=str, default="Milan U", help="which institution you want to find. Default = 'Milan U'")
     parser.add_option("--no-gui", action="store_true", default=False, help="do no show GUI")
     (options, args) = parser.parse_args()
