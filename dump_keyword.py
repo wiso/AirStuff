@@ -16,6 +16,7 @@ re_other_keys = re.compile('<meta +content="(.+?)" +name="citation_keywords" ?/>
 
 
 def get_keywords(html):
+    print(type(html))
     m_iter_keys = re_keys.finditer(html)
     if not m_iter_keys:
         logging.error("cannot find author keys")
@@ -51,4 +52,4 @@ if __name__ == "__main__":
         logging.error("you have to specify the arxiv url")
         exit()
 
-    print main(args[0])
+    print(main(args[0]))

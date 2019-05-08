@@ -5,17 +5,17 @@ import re
 try:
     import xmltodict
 except ImportError:
-    print """
+    print("""
 you have to install xmltodict:
 
 su
 pip install xmltodict
-"""
+""")
 
 from common import get_html
 import dump_keyword
 
-from Tkinter import *
+from tkinter import *
 
 
 def format_name(author):
@@ -43,28 +43,28 @@ def main(html_inspire, default_institution):
 
     authors = get_authors(doc)
 
-    print "\n" + "=" * 10 + " ALL AUTHORS " + "=" * 10
+    print("\n" + "=" * 10 + " ALL AUTHORS " + "=" * 10)
     authors_list = ", ".join(map(format_name, authors))
-    print authors_list
+    print(authors_list)
 
-    print "\n found %d authors" % len(authors)
+    print("\n found %d authors" % len(authors))
     milan_authors = [author for author in authors if (default_institution in " ".join(author[2]))]
 
-    print "\n" + "=" * 10 + (" %s AUTHORS " % default_institution) + "=" * 10
+    print("\n" + "=" * 10 + (" %s AUTHORS " % default_institution) + "=" * 10)
     milan_list = "\n".join(map(format_name_italian, milan_authors))
-    print milan_list
+    print(milan_list)
 
-    print "\n" + "=" * 10 + " TITLE " + "=" * 10
+    print("\n" + "=" * 10 + " TITLE " + "=" * 10)
     title = get_title(doc)
-    print title
+    print(title)
 
-    print "\n" + "=" * 10 + " ABSTRACT " + "=" * 10
+    print("\n" + "=" * 10 + " ABSTRACT " + "=" * 10)
     abstract = get_abstract(doc)
-    print abstract
+    print(abstract)
 
-    print "\n===== KEYWORKDS ======\n"
+    print("\n===== KEYWORKDS ======\n")
     keys = dump_keyword.get_keys_from_html(get_html(html_inspire))
-    print keys
+    print(keys)
 
     return authors_list, milan_list, title, abstract, keys
 
@@ -125,7 +125,7 @@ class Application(Frame):
         self.text_keywords.insert(INSERT, keys)
 
     def say_hi(self):
-        print "hi there, everyone!"
+        print("hi there, everyone!")
 
     def copy(self, widget):
         text = widget.get("1.0", END)
