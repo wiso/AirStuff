@@ -1,19 +1,10 @@
 import logging
 logging.basicConfig(level=logging.INFO)
 import re
+import xmltodict
 
-try:
-    import xmltodict
-except ImportError:
-    print("""
-you have to install xmltodict:
-
-su
-pip install xmltodict
-""")
-
-from common import get_html
-import dump_keyword
+from .common import get_html
+from . import dump_keyword
 
 from tkinter import *
 
@@ -32,7 +23,7 @@ def format_name_italian(author):
     return "%s, %s" % (surname, name)
 
 
-def main(html_inspire, default_institution):
+def parse(html_inspire, default_institution):
     m = re.search(r"/([0-9]+)", html_inspire)
     if m is None:
         raise ValueError("not valid html")
@@ -115,7 +106,7 @@ class Application(Frame):
         self.text_abstract.delete("1.0", END)
         self.text_keywords.delete("1.0", END)
 
-        authors_list, milan_list, title, abstract, keys = main(url,
+        authors_list, milan_list, title, abstract, keys = parse(url,
                                                                self.institution)
         
         self.text_titles.insert(INSERT, title)
@@ -184,7 +175,7 @@ class Application(Frame):
         self.createWidgets(url)
 
 
-if __name__ == "__main__":
+def main():
     from optparse import OptionParser
     parser = OptionParser(usage="usage: %prog inspire_url")
     parser.epilog = "example: parse_inspire.py http://inspirehep.net/record/1240088"
@@ -193,7 +184,7 @@ if __name__ == "__main__":
     (options, args) = parser.parse_args()
 
     if options.no_gui:
-        main(args[0], options.institution)
+        parse(args[0], options.institution)
         exit()
 
     root = Tk()
@@ -201,3 +192,7 @@ if __name__ == "__main__":
                       institution=options.institution, master=root)
     app.mainloop()
     root.destroy()
+
+
+if __name__ == '__main__':
+    main()
