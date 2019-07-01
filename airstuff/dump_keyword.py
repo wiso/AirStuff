@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 
-__doc__ = "simple tool to dump keyword and abstract from inspirehep website"
-__author__ = "Ruggero Turra"
-__email__ = "ruggero.turra@mi.infn.it"
-
 import logging
 import re
 
