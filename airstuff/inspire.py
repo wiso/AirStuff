@@ -11,27 +11,50 @@ logging.getLogger("requests").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("bibtexparser").setLevel(logging.WARNING)
 
-def query_inspire(search, rg, sc, infos=None):
-    logging.debug('go')
-    r = requests.get('http://inspirehep.net/search',
-                    params=dict(of='recjson', rg=rg, action_search="Search", sc=sc, do='d',
-                                p=search))
+URL_SEARCH = "http://inspirehep.net/search"
+
+
+def query_inspire(search, rg, sc, ot=None):
+    ot = ot or ['recid', 'creation_date', 'number_of_authors', 'system_control_number', 'doi', 'title']
+    r = requests.get(URL_SEARCH,
+                     params=dict(
+                         of='recjson',             # json format
+                         rg=rg,                    # range
+                         action_search="Search",
+                         sc=sc,                    # offset
+                         do='d',
+                         ot=ot,                    # ouput tags
+                         sf='earliestdate',        # sorting
+                         so='d',                   # descending
+                         p=search))
     logging.debug('querying %s' % r.url)
-    j = json.loads(r.text)
-    if infos is not None:
-        return {key: j[key] for key in infos}
-    else:
-        return j
+    try:
+        j = json.loads(r.text)
+    except json.decoder.JSONDecodeError:
+        logging.error("problem decoding", r.text)
+        return None
+    return j
+
+
+def fix_info(info):
+    if 'doi' in info:
+        if type(info['doi']) is list:
+            if len(set(info['doi'])) == 1:
+                info['doi'] = info['doi'][0]
+    if 'title' in info:
+        if type(info['title']) is dict:
+            info['title'] = info['title']['title']
+    return info
 
 
 def get_all_collaboration(collaboration, infos=None):
-    infos = infos or ['creation_date', 'title', 'doi']
+    infos = infos or ['recid', 'creation_date', 'number_of_authors', 'system_control_number', 'doi', 'title']
     nthread = 10
     shift = 20
     offset = 0
 
     def get(offset):
-        search = "collaboration:'%s' AND collection:published" % collaboration                         
+        search = "collaboration:'%s' AND collection:published" % collaboration
         return query_inspire(search, shift, offset, infos)
 
     while True:
@@ -42,14 +65,14 @@ def get_all_collaboration(collaboration, infos=None):
         with ThreadPool(nthread) as pool:
             r = pool.map(get, offset_bunch)
             for rr in r:
-                    dobreak = False
-                    for rrr in rr:
-                        yield rrr
-                    if not rr:
-                        dobreak = True
+                dobreak = False
+                for rrr in rr:
+                    yield fix_info(rrr)
+                if not rr:
+                    dobreak = True
             if dobreak:
                 break
 
 
 for x in get_all_collaboration('ATLAS'):
-    print(x)
+    print(x['creation_date'], x['doi'], x['title'])
