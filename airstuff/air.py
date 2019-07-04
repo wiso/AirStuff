@@ -13,7 +13,11 @@ logging.getLogger("bibtexparser").setLevel(logging.WARNING)
 def get_document_metadata(document_id):
     BASEURL = "https://air.unimi.it/references"
     r = requests.get(BASEURL, params={'format': 'bibtex', 'item_id': str(document_id)})
-    return bibtexparser.loads(r.text).entries[0]
+    try:
+        return bibtexparser.loads(r.text).entries[0]
+    except:
+        print("problem parsing %s" % r.text)
+        return None
 
 
 def get_documents_from_author(author_id):
@@ -65,4 +69,5 @@ for gg in g:
     if 'doi' not in info:
         logging.info("skipping %s", info)
         continue
-    print(info['doi'])
+    if gg:
+        print(info['doi'])
