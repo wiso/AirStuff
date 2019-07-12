@@ -1,11 +1,7 @@
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk
-import threading
-import queue
-import time
 from threading import Lock
-
 import inspire
 
 
@@ -26,7 +22,6 @@ class MyWindow(Gtk.Window):
         self.inspire_running = False
         box_inspire.pack_start(self.button_start, True, True, 0)
 
-
         box_table = Gtk.Box()
         main_box.add(box_table)
 
@@ -46,7 +41,7 @@ class MyWindow(Gtk.Window):
             column = Gtk.TreeViewColumn(headers[i], Gtk.CellRendererText(), text=i)
             self.table_view.append_column(column)
 
-        self.indico_query = None
+        self.inspire_query = None
 
     def run_stop_inspire(self, widget):
         if self.inspire_running:
@@ -71,19 +66,20 @@ class MyWindow(Gtk.Window):
             with lock:
                 self.debug(item)
 
-        self.indico_query = inspire.IndicoQuery(callback=f)
-        self.indico_query.run()
+        self.inspire_query = inspire.InspireQuery(query="collaboration:'ATLAS' AND collection:published", callback=f)
+        self.inspire_query.run()
 
     def stop_inspire(self):
-        self.indico_query.stop()
-        self.indico_query = None
+        self.inspire_query.stop()
+        self.inspire_query = None
 
     def debug(self, item):
-        msg = "%s\n" % item
         item = inspire.fix_info(item)
         self.table_store.append([item['doi'], str(item['title']), str(item['creation_date'])])
 
-win = MyWindow()
-win.connect("destroy", Gtk.main_quit)
-win.show_all()
-Gtk.main()
+
+if __name__ == '__main__':
+    win = MyWindow()
+    win.connect("destroy", Gtk.main_quit)
+    win.show_all()
+    Gtk.main()
