@@ -8,7 +8,7 @@ from multiprocessing.pool import ThreadPool
 import logging
 from datetime import datetime
 from workers import OffsetsProducer, CallBackConsumer
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logging.getLogger("requests").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("bibtexparser").setLevel(logging.WARNING)
@@ -16,8 +16,7 @@ logging.getLogger("bibtexparser").setLevel(logging.WARNING)
 URL_SEARCH = "http://inspirehep.net/search"
 
 
-def query_inspire(query, rg, jrec, ot=None):
-    ot = ot or ['recid', 'creation_date', 'number_of_authors', 'system_control_number', 'doi', 'title']
+def query_inspire(query, rg=100, jrec=1, ot=None):
     # see http://inspirehep.net/help/hacking/search-engine-api
     r = requests.get(URL_SEARCH,
                      params=dict(
@@ -106,6 +105,9 @@ def get_all_collaboration(collaboration, infos=None):
 import threading
 import queue
 
+ndone = 0
+lock_ndone = threading.Lock()
+
 
 class InspireConsumer(threading.Thread):
     def __init__(self, input_queue, output_queue, query, step, infos=None, stop_event=None):
@@ -125,6 +127,9 @@ class InspireConsumer(threading.Thread):
 
                 for rr in r:
                     self.output_queue.put(fix_info(rr))
+                    with lock_ndone:
+                        global ndone
+                        ndone += 1
 
                 self.input_queue.task_done()
 
@@ -167,21 +172,21 @@ class InspireQuery():
         self.status = 'stopping'
         self.stop_event.set()
 
-        logging.debug('stopping producer')
+        logging.info('stopping producer')
         for worker in self.all_producers:
             worker.join()
 
-        logging.debug('stopping consumer')
+        logging.info('stopping consumer')
         for worker in self.all_workers:
             worker.join()
 
         if self.callback_worker is not None:
-            logging.debug('stopping callback')
-            logging.debug('waiting callback worker to join')
+            logging.info('stopping callback')
             self.callback_worker.join()
 
         self.status = 'stopped'
-        logging.debug('all stopped')
+        logging.info('all stopped')
+        logging.info("Number of inspire entried found: %d" % ndone)
 
         self.stop_event.clear()
 

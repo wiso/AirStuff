@@ -1,6 +1,6 @@
 import requests
 import bibtexparser
-from bs4 import BeautifulSoup
+# from bs4 import BeautifulSoup
 from lxml import etree
 from multiprocessing.pool import ThreadPool
 from workers import OffsetsProducer, CallBackConsumer

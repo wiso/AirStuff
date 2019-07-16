@@ -3,7 +3,7 @@
 import logging
 import re
 
-from .common import get_html
+from common import get_html
 logging.basicConfig(level=logging.INFO)
 
 #re_author_keys = re.compile('<meta +name="keywords" +content="(.+?)" ?/>')

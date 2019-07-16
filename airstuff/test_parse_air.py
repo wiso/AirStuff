@@ -6,7 +6,6 @@ from lxml import etree
 import lxml.html
 
 
-
 def soup(html):
     print('creating soup')
     soup = BeautifulSoup(html, 'lxml')

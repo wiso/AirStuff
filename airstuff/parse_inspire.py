@@ -3,8 +3,8 @@ logging.basicConfig(level=logging.INFO)
 import re
 import xmltodict
 
-from .common import get_html
-from . import dump_keyword
+from common import get_html
+import dump_keyword
 
 from tkinter import *
 
