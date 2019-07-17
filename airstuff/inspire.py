@@ -7,7 +7,7 @@ import json
 from multiprocessing.pool import ThreadPool
 import logging
 from datetime import datetime
-from workers import OffsetsProducer, CallBackConsumer
+from workers import OffsetsProducer, CallBackConsumer, DuplicateFilter
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("requests").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
@@ -156,8 +156,16 @@ class InspireQuery():
         p.setDaemon(True)
         self.all_producers.append(p)
 
+        queue_duplicates = queue.Queue()
+
         for w in range(self.nworkers):
-            worker = InspireConsumer(self.input_queue, self.output_queue, self.query, self.buf_size, stop_event=self.stop_event)
+            worker = InspireConsumer(self.input_queue, queue_duplicates, self.query, self.buf_size, stop_event=self.stop_event)
+            worker.setDaemon(True)
+            self.all_workers.append(worker)
+            worker.start()
+
+        for w in range(2):
+            worker = DuplicateFilter(queue_duplicates, self.output_queue, stop_event=self.stop_event)
             worker.setDaemon(True)
             self.all_workers.append(worker)
             worker.start()

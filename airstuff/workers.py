@@ -17,7 +17,30 @@ class OffsetsProducer(threading.Thread):
                 logging.debug("adding %d", i)
                 self.input_queue.put(i)
                 i += self.step
-        return
+
+
+class DuplicateFilter(threading.Thread):
+    added = []
+    lock = threading.Lock()
+
+    def __init__(self, input_queue, output_queue, stop_event=None):
+        super(DuplicateFilter, self).__init__()
+        self.input_queue = input_queue
+        self.output_queue = output_queue
+        self.stop_event = stop_event
+
+    def run(self):
+        while self.stop_event is None or not self.stop_event.is_set():
+            if not self.input_queue.empty():
+                item = self.input_queue.get()
+                if item in self.added:
+                    logging.warning('duplicate: %s', item)
+                    self.input_queue.task_done()
+                    continue
+                with self.lock:
+                    self.added.append(item)
+                self.input_queue.task_done()
+                self.output_queue.put(item)
 
 
 class CallBackConsumer(threading.Thread):
