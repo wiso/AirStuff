@@ -1,6 +1,6 @@
 import threading
 import logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG, format='%(name)s %(levelname)s %(threadName)s %(message)s')
 
 
 class OffsetsProducer(threading.Thread):
@@ -16,12 +16,15 @@ class OffsetsProducer(threading.Thread):
             if not self.input_queue.full():
                 logging.debug("adding %d", i)
                 self.input_queue.put(i)
+                logging.debug('added %d' % i)
                 i += self.step
+        logging.debug('producer end')
+        return
 
 
 class DuplicateFilter(threading.Thread):
     added = []
-    lock = threading.Lock()
+    lock_duplicated = threading.Lock()
 
     def __init__(self, input_queue, output_queue, stop_event=None):
         super(DuplicateFilter, self).__init__()
@@ -37,7 +40,7 @@ class DuplicateFilter(threading.Thread):
                     logging.warning('duplicate: %s', item)
                     self.input_queue.task_done()
                     continue
-                with self.lock:
+                with self.lock_duplicated:
                     self.added.append(item)
                 self.input_queue.task_done()
                 self.output_queue.put(item)
