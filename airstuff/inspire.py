@@ -15,6 +15,8 @@ logging.getLogger("bibtexparser").setLevel(logging.WARNING)
 
 URL_SEARCH = "http://inspirehep.net/search"
 
+ATLAS_QUERY = "collaboration:'ATLAS' AND collection:published and NOT collection:conferencepaper and collection:citeable"
+
 
 def query_inspire(query, rg=100, jrec=1, ot=None):
     # see http://inspirehep.net/help/hacking/search-engine-api
@@ -222,11 +224,11 @@ if __name__ == '__main__':
             doi_set.add(item['doi'])
             print("%4d %40s %30s %s" % (ifound, item['doi'], str(item['title'][:30]), item['creation_date']))
             if fout is not None:
-                fout.write("%s %s %s\n" % (item['doi'], item['title'], item['creation_date']))
+                fout.write("%s\t%s\t%s\n" % (item['doi'], item['title'], item['creation_date']))
             ifound += 1
 
     start_time = time.time()
-    q = InspireQuery("collaboration:'ATLAS' AND collection:published", callback=callback, workers=args.workers)
+    q = InspireQuery(ATLAS_QUERY, callback=callback, workers=args.workers)
     q.run()
     logging.info("running")
     while True:

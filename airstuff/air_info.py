@@ -6,6 +6,7 @@ from gi.repository import Gtk, Gdk
 from inspire import query_inspire, fix_info
 from scopus import get_eid_from_doi
 from wos import get_wos_from_doi
+import driver_air
 
 
 class WindowDoi(Gtk.Window):
@@ -13,8 +14,10 @@ class WindowDoi(Gtk.Window):
     def __init__(self, doi=None, institute=None):
         Gtk.Window.__init__(self, title="Air Stuff")
 
+        self.info = None
+
         self.clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
-        self.browser = 'chrome'
+        self.browser_name = 'chrome'
 
         self.set_size_request(1000, 500)
         main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -78,6 +81,7 @@ class WindowDoi(Gtk.Window):
         box_selenium.pack_start(button_login_selenium, True, True, 0)
 
         button_start_selenium = Gtk.Button(label='insert from doi')
+        button_start_selenium.connect('clicked', self.start_selenium)
         box_selenium.pack_start(button_start_selenium, True, True, 0)
 
         if institute is not None:
@@ -108,7 +112,7 @@ class WindowDoi(Gtk.Window):
             pass
         if len(info) > 1:
             pass
-        info = fix_info(info[0])
+        info = self.info = fix_info(info[0])
 
         self.entry_title.set_text(info['title'])
 
@@ -117,15 +121,16 @@ class WindowDoi(Gtk.Window):
         selected_institutes = set([self.entry_institute.get_text()])
         if not selected_institutes:
             logging.warning('no institute specified')
-        selected_authors = [author['full_name'] for author in info['authors'] 
+        selected_authors = [author['full_name'] for author in info['authors']
                             if selected_institutes.intersection(set(author['affiliation']))]
         if not selected_authors:
             logging.warning('no author found for institute %s', selected_institutes)
 
         self.selected_authors_textbuffer.set_text('\n'.join(selected_authors))
-        
+
         eid = get_eid_from_doi(doi)
-        self.entry_scopus.set_text(eid)
+        if eid is not None:
+            self.entry_scopus.set_text(eid)
 
         wos = get_wos_from_doi(doi)
         self.entry_wos.set_text(wos)
@@ -134,15 +139,27 @@ class WindowDoi(Gtk.Window):
             keywords = [k['term'] for k in info['thesaurus_terms'] if 'term' in k]
             self.entry_keyworkds.set_text(';'.join(keywords))
 
+    @property
+    def driver(self):
+        if hasattr(self, '_driver') and self._driver is not None and self._driver.name == self.browser_name:
+            return self._driver
+        else:
+            self._driver = driver_air.get_driver(debug=True, driver=self.browser_name)
+            return self._driver
+
     def login_selenium(self, widget):
-        pass
+        driver_air.login(self.driver)
 
     def on_browser_toggled(self, button, value):
-        if button.get_active():
-            state = "on"
-        else:
-            state = "off"
-        self.browser = value
+        self.browser_name = value
+
+    def start_selenium(self, widget):
+        r = driver_air.upload_from_doi(self.driver, self.info)
+        if r == driver_air.ReturnValue.DUPLICATE:
+            logging.warning('do not create duplicate')
+        d = self.driver
+        d.close()
+        del d
 
 
 def app_main(doi=None, institute=None):

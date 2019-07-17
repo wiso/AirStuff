@@ -56,7 +56,6 @@ def get_document_ids_from_author_offset(author_id, rg, offset):
     logging.debug("getting %s", url)
     r = requests.get(url)
     html = r.text
-    logging.debug('size text %s', len(html))
 
     root = etree.HTML(html)
     result = root.xpath('//form[@class="form-inline"]/*[@name="item_id"]')
@@ -96,13 +95,13 @@ class AirConsumer(threading.Thread):
             if not self.input_queue.empty():
                 offset = self.input_queue.get()
                 r = get_document_ids_from_author_offset(self.author_id, self.step, offset)
-                logging.debug('all id %s' % r)
                 for rr in r:
                     info = get_document_metadata(rr)
                     if 'doi' not in info:
                         logging.info("skipping %s", info)
                         continue
                     logging.debug('putting info for %s into queue' % info['doi'])
+                    info['title'] = info['title'].replace('\n', ' ').replace('\t', ' ')
                     info = {k: info[k] for k in ('doi', 'title', 'year')}
                     self.output_queue.put(info)
 
@@ -199,7 +198,7 @@ if __name__ == '__main__':
             doi_set.add(item['doi'])
             print("%4d %40s %30s %s" % (ifound, item['doi'], str(item['title'][:30]), item['year']))
             if fout is not None:
-                fout.write("%s %s %s\n" % (item['doi'], item['title'], item['year']))
+                fout.write("%s\t%s\t%s\n" % (item['doi'], item['title'], item['year']))
             ifound += 1
     all_publications = []
     doi_set = set()

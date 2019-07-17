@@ -5,6 +5,9 @@ from threading import Lock
 import datetime
 import inspire
 from air import AirQuery
+from air_info import WindowDoi
+import logging
+logging.basicConfig(level=logging.INFO)
 
 lock = Lock()
 
@@ -62,7 +65,7 @@ class MyWindow(Gtk.Window):
     def __init__(self):
         Gtk.Window.__init__(self, title="Air Stuff")
 
-        self.set_default_size(1000, 350)
+        self.set_default_size(800, 350)
         main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.add(main_box)
 
@@ -71,7 +74,7 @@ class MyWindow(Gtk.Window):
         main_box.add(box_inspire)
 
         # buttons inpire
-        self.button_start = Gtk.Button(label="start")
+        self.button_start = Gtk.Button(label="search on inspire")
         self.button_start.connect("clicked", self.run_stop_inspire)
         self.inspire_running = False
         box_inspire.pack_start(self.button_start, True, True, 0)
@@ -87,11 +90,11 @@ class MyWindow(Gtk.Window):
         sw = Gtk.ScrolledWindow()
         sw.set_policy(
             Gtk.PolicyType.ALWAYS, Gtk.PolicyType.ALWAYS)
-        sw.set_size_request(1000, 200)
+        sw.set_size_request(1000, 150)
         box_table.pack_start(sw, True, True, 0)
 
-        self.table_store = Gtk.ListStore(str, str, str)
-        self.table_view = Gtk.TreeView(model=self.table_store)
+        self.table_inspire_store = Gtk.ListStore(str, str, str)
+        self.table_view = Gtk.TreeView(model=self.table_inspire_store)
         sw.add(self.table_view)
         self.table_view.set_search_column(1)
 
@@ -111,7 +114,7 @@ class MyWindow(Gtk.Window):
         box_air = Gtk.Box()
         main_box.add(box_air)
 
-        self.button_start_air = Gtk.Button(label="start")
+        self.button_start_air = Gtk.Button(label="search on AIR")
         self.button_start_air.connect("clicked", self.run_stop_air)
         self.air_running = False
         box_air.pack_start(self.button_start_air, True, True, 0)
@@ -128,21 +131,59 @@ class MyWindow(Gtk.Window):
         sw = Gtk.ScrolledWindow()
         sw.set_policy(
             Gtk.PolicyType.ALWAYS, Gtk.PolicyType.ALWAYS)
-        sw.set_size_request(1000, 200)
+        sw.set_size_request(1000, 150)
         box_table_air.pack_start(sw, True, True, 0)
 
         self.table_air_store = Gtk.ListStore(str, str, str)
         self.table_air_view = Gtk.TreeView(model=self.table_air_store)
         sw.add(self.table_air_view)
-        self.table_view.set_search_column(1)
+        self.table_air_view.set_search_column(1)
 
         headers = 'doi', 'title', 'year'
         for i in range(3):
             column = Gtk.TreeViewColumn(headers[i], Gtk.CellRendererText(), text=i)
+            column.set_sort_column_id(i)
             self.table_air_view.append_column(column)
 
         self.stat_box_air = StatBox()
         main_box.add(self.stat_box_air)
+
+        # diff buttons
+        box_diff = Gtk.Box()
+        button_diff = Gtk.Button(label='make diff')
+        button_diff.connect('clicked', self.make_diff)
+        box_diff.pack_start(button_diff, True, True, 0)
+        main_box.add(box_diff)
+
+        # diff table
+        box_table_diff = Gtk.Box()
+        main_box.add(box_table_diff)
+        sw = Gtk.ScrolledWindow()
+        sw.set_policy(
+            Gtk.PolicyType.ALWAYS, Gtk.PolicyType.ALWAYS)
+        sw.set_size_request(1000, 150)
+        box_table_diff.pack_start(sw, True, True, 0)
+
+        self.table_diff_store = Gtk.ListStore(str, str, str)
+        self.table_diff_view = Gtk.TreeView(model=self.table_diff_store)
+        sw.add(self.table_diff_view)
+        self.table_diff_view.set_search_column(1)
+
+        headers = 'doi', 'title', 'date'
+        for i in range(3):
+            column = Gtk.TreeViewColumn(headers[i], Gtk.CellRendererText(), text=i)
+            column.set_sort_column_id(i)
+            self.table_diff_view.append_column(column)
+
+        self.stat_box_diff = StatBox()
+        main_box.add(self.stat_box_diff)
+
+        # footer
+        box_action = Gtk.Box()
+        main_box.add(box_action)
+        button_go = Gtk.Button(label='process selected')
+        button_go.connect('clicked', self.go)
+        box_action.pack_start(button_go, True, True, 0)
 
     def run_stop_inspire(self, widget):
         if self.inspire_running:
@@ -182,7 +223,8 @@ class MyWindow(Gtk.Window):
             with lock:
                 GLib.idle_add(self.add_inspire, item)
 
-        self.inspire_query = inspire.InspireQuery(query="collaboration:'ATLAS' AND collection:published", callback=f)
+
+        self.inspire_query = inspire.InspireQuery(query=inspire.ATLAS_QUERY, callback=f)
         self.inspire_query.run()
 
     def stop_inspire(self):
@@ -191,7 +233,7 @@ class MyWindow(Gtk.Window):
 
     def add_inspire(self, item):
         item = inspire.fix_info(item)
-        self.table_store.append([item['doi'], str(item['title']), str(item['creation_date'])])
+        self.table_inspire_store.append([item['doi'], str(item['title']), str(item['creation_date'])])
         self.stat_box_inspire.fill(item['creation_date'].year)
 
     def upload_inspire(self, item):
@@ -202,11 +244,21 @@ class MyWindow(Gtk.Window):
         dlg.add_button(Gtk.STOCK_OPEN, Gtk.ResponseType.OK)
 
         answer = dlg.run()
+        fn = None
         try:
             if answer == Gtk.ResponseType.OK:
-                print(dlg.get_filename())
+                fn = dlg.get_filename()
         finally:
-            dlg.destroy() 
+            dlg.destroy()
+
+        if not fn:
+            return
+
+        with open(fn) as f:
+            for line in f:
+                row = line.split('\t')
+                item = {'doi': row[0].strip(), 'title': row[1].strip(), 'creation_date': datetime.datetime.fromisoformat(row[2].strip())}
+                self.add_inspire(item)
 
     def run_air(self):
 
@@ -232,11 +284,49 @@ class MyWindow(Gtk.Window):
         dlg.add_button(Gtk.STOCK_OPEN, Gtk.ResponseType.OK)
 
         answer = dlg.run()
+        fn = None
         try:
             if answer == Gtk.ResponseType.OK:
-                print(dlg.get_filename())
+                fn = dlg.get_filename()
         finally:
-            dlg.destroy() 
+            dlg.destroy()
+
+        if not fn:
+            return
+
+        with open(fn) as f:
+            for iline, line in enumerate(f, 1):
+                row = line.split('\t')
+                try:
+                    item = {'doi': row[0].strip(), 'title': row[1].strip(), 'year': row[2].strip()}
+                except IndexError:
+                    logging.error('problem parsing %s:%d "%s"', fn, iline, line)
+                self.add_air(item)
+
+    def make_diff(self, widget):
+        air_values = [list(row) for row in self.table_air_store]
+        inspire_values = [list(row) for row in self.table_inspire_store]
+
+        dois_air = set(v[0] for v in air_values)
+        dois_inspire = set(v[0] for v in inspire_values)
+        dois_diff = dois_inspire - dois_air
+
+        info_diff = []
+        for d in inspire_values:
+            if d[0] in dois_diff:
+                info_diff.append(d)
+
+        for item in info_diff:
+            self.table_diff_store.append([item[0], str(item[1]), str(item[2])])
+            self.stat_box_diff.fill(datetime.datetime.fromisoformat(item[2]).year)
+
+    def go(self, widget):
+        index_selected = self.table_diff_view.get_selection().get_selected_rows()
+        if not index_selected[1]:
+            return
+        doi = self.table_diff_store[index_selected[1][0][0]][0]
+        new_window = WindowDoi(doi=doi, institute="Milan U.")
+        new_window.show_all()
 
 
 def app_main():
