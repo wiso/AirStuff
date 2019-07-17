@@ -1,6 +1,6 @@
 import threading
 import logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG, format='%(name)s %(levelname)s %(threadName)s %(message)s')
 
 
 class OffsetsProducer(threading.Thread):
@@ -16,7 +16,9 @@ class OffsetsProducer(threading.Thread):
             if not self.input_queue.full():
                 logging.debug("adding %d", i)
                 self.input_queue.put(i)
+                logging.debug('added %d' % i)
                 i += self.step
+        logging.debug('producer end')
         return
 
 

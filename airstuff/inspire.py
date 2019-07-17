@@ -8,10 +8,11 @@ from multiprocessing.pool import ThreadPool
 import logging
 from datetime import datetime
 from workers import OffsetsProducer, CallBackConsumer
-logging.basicConfig(level=logging.INFO)
 logging.getLogger("requests").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("bibtexparser").setLevel(logging.WARNING)
+logging.basicConfig(level=logging.DEBUG, format='%(name)s %(levelname)6d %(threadName)s %(message)s')
+
 
 URL_SEARCH = "http://inspirehep.net/search"
 
@@ -124,8 +125,15 @@ class InspireConsumer(threading.Thread):
     def run(self):
         while self.stop_event is None or not self.stop_event.is_set():
             if not self.input_queue.empty():
+                logging.debug('getting from queue')
                 offset = self.input_queue.get()
                 r = query_inspire(self.query, self.step, offset, self.infos)
+
+                if len(r) == 0:
+                    logging.info("getting empty response")
+                    if self.stop_event is not None:
+                        self.stop_event.set()
+                        logging.debug('stop event set')
 
                 for rr in r:
                     self.output_queue.put(fix_info(rr))
@@ -134,6 +142,21 @@ class InspireConsumer(threading.Thread):
                         ndone += 1
 
                 self.input_queue.task_done()
+        logging.debug('thread at the end')
+
+
+class ManagerWorker(threading.Thread):
+    def __init__(self, stopping_event, stopping_action):
+        super(ManagerWorker, self).__init__()
+        self.stopping_event = stopping_event
+        self.stopping_action = stopping_action
+
+    def run(self):
+        self.stopping_event.wait()
+        logging.debug('stopping condition met')
+        self.stopping_action()
+        logging.debug('stopping action done')
+        return
 
 
 class InspireQuery():
@@ -153,38 +176,57 @@ class InspireQuery():
     def run(self):
         self.status = 'starting'
         p = OffsetsProducer(self.input_queue, self.buf_size, stop_event=self.stop_event)
+        p.name = 'producer'
         p.setDaemon(True)
         self.all_producers.append(p)
 
+        self.manager = ManagerWorker(stopping_event=self.stop_event,
+                                     stopping_action=self.stop)
+        self.manager.name = 'manager'
+        self.manager.setDaemon(True)
+        self.manager.start()
+        logging.debug('manager started')
+
         for w in range(self.nworkers):
             worker = InspireConsumer(self.input_queue, self.output_queue, self.query, self.buf_size, stop_event=self.stop_event)
+            worker.name = 'consumer-%d' % w
             worker.setDaemon(True)
             self.all_workers.append(worker)
             worker.start()
+        logging.debug('worker started')
 
         if self.callback is not None:
             self.callback_worker = CallBackConsumer(self.output_queue, self.callback, stop_event=self.stop_event)
+            self.callback_worker.name = 'callback'
             self.callback_worker.setDaemon(True)
             self.callback_worker.start()
+        logging.debug('callback started')
 
         p.start()
+        logging.debug('produced started')
         self.status = 'running'
 
     def stop(self):
+        logging.debug('start stopping procedure')
         self.status = 'stopping'
         self.stop_event.set()
 
-        logging.info('stopping producer')
+        logging.info('wait produer to join')
         for worker in self.all_producers:
             worker.join()
 
-        logging.info('stopping consumer')
+        logging.info('wait consumer to join')
         for worker in self.all_workers:
             worker.join()
+            logging.debug('worker %s joined' % worker.name)
 
         if self.callback_worker is not None:
-            logging.info('stopping callback')
+            logging.info('wait callback to join')
             self.callback_worker.join()
+
+        if threading.get_ident() != self.manager.ident:
+            logging.info('wait manager to join')
+            self.manager.join()
 
         self.status = 'stopped'
         logging.info('all stopped')
@@ -233,7 +275,8 @@ if __name__ == '__main__':
     logging.info("running")
     while True:
         if (args.max_results is not None and ifound >= args.max_results) or \
-           (args.max_seconds is not None and (time.time() - start_time) > args.max_seconds):
+           (args.max_seconds is not None and (time.time() - start_time) > args.max_seconds) or \
+           q.status == 'stopped':
             logging.info("stopping")
             q.stop()
             logging.info("stopped")
