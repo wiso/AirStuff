@@ -20,6 +20,7 @@ ATLAS_QUERY = "collaboration:'ATLAS' AND collection:published and NOT collection
 
 
 def query_inspire(query, rg=100, jrec=1, ot=None):
+    logging.debug('querying %s, offset=%d', query, jrec)
     # see http://inspirehep.net/help/hacking/search-engine-api
     r = requests.get(URL_SEARCH,
                      params=dict(
@@ -32,7 +33,7 @@ def query_inspire(query, rg=100, jrec=1, ot=None):
                          sf='earliestdate',        # sorting
                          so='d',                   # descending
                          p=query))
-    logging.debug('querying %s' % r.url)
+    logging.debug('getting %s' % r.url)
     try:
         j = json.loads(r.text)
     except json.decoder.JSONDecodeError:

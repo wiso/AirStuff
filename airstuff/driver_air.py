@@ -7,6 +7,8 @@ from selenium.webdriver.remote.remote_connection import LOGGER as selenium_logge
 from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.support.ui import WebDriverWait
 import pickle
+import time
+from enum import Enum
 import logging
 logging.basicConfig(level=logging.DEBUG)
 logging.getLogger("requests").setLevel(logging.WARNING)
@@ -18,7 +20,7 @@ URL_LOGIN = 'https://air.unimi.it/au/login'
 URL_MYDSPACE = 'https://air.unimi.it/mydspace'
 URL_SUBMIT = 'https://air.unimi.it/submit'
 
-from enum import Enum
+
 class ReturnValue(Enum):
     SUCCESS = 1
     DUPLICATE = 2
@@ -63,6 +65,7 @@ def login(driver):
     save_cookies(driver)
     driver.quit()
 
+
 def save_cookies(driver):
     cookies = driver.get_cookies()
     logging.info('saving %d cookies', len(cookies))
@@ -73,8 +76,9 @@ def load_cookie(driver):
     cookies = pickle.load(open("cookies.pkl", "rb"))
     if not cookies:
         raise IOError("no cookie found. Have you login?")
+    
     for cookie in cookies:
-        driver.add_cookie(cookie)
+        driver.add_cookie({'name': cookie['name'], 'value': cookie['value']})
     logging.info('%d cookies have been loaded' % len(cookies))
 
 
@@ -103,7 +107,7 @@ def upload_from_doi(driver, info):
     driver.find_element_by_id("lookup_idenfifiers").click()
 
     # second page
-    logging.debug('waiting for page')
+    logging.debug('waiting for page with results from doi %s', info['doi'])
     WebDriverWait(driver, 20).until(EC.visibility_of_element_located((By.ID, "checkresult0"))).click()
     type_document_selector = driver.find_element_by_id("select-collection0")
     sel = Select(type_document_selector)
@@ -112,14 +116,22 @@ def upload_from_doi(driver, info):
     driver.find_element_by_xpath("//button[contains(text(), 'Importa i record selezionati')]").click()
 
     # third page (licence)
+    logging.debug('giving licence')
     driver.find_element_by_name("submit_grant").click()
 
     # check duplicate
-    if driver.find_elements_by_id('duplicateboxtitle'):
-        logging.warning('Trying to insert duplicate')
-        WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.ID, 'cancelpopup'))).click()
-        WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.NAME, 'submit_remove'))).click()
-        return ReturnValue.DUPLICATE
+    
+    duplicate_box_titles = driver.find_elements_by_id('duplicateboxtitle')
+    
+    if duplicate_box_titles:
+        box = duplicate_box_titles[0]
+        time.sleep(1)  # FIXME: the problem is that the page is slow and this will be visible only if there will be a duplicate, which I don't know.
+        is_displayed = box.is_displayed()
+        if box.is_displayed():
+            logging.warning('Trying to insert duplicate')
+            WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.ID, 'cancelpopup'))).click()
+            WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.NAME, 'submit_remove'))).click()
+            return ReturnValue.DUPLICATE
 
     # warning authors
     many_authors = False
@@ -129,24 +141,71 @@ def upload_from_doi(driver, info):
     except NoSuchElementException:
         pass
 
-    page = PageDescrivere2()
+    page = PageDescrivere2(driver)
     logging.debug('filling page Descrivere 2')
     if not page.get_title():
+        logging.debug('set title %s', info['title'])
         page.set_title(info['title'])
-    if not page.get_abstract():
-        page.set_abstract(info['abstract'])
-    if not page.get_keywords():
-        page.set_keywords(info['keywords'])
+    else:
+        logging.debug('title already present')
 
+    if not page.get_abstract():
+        logging.debug('set abstract "%s"', info['abstract'][0]['summary'])
+        page.set_abstract(info['abstract'][0]['summary'])
+    else:
+        logging.debug('abstract already present')
+    if not page.get_keywords():
+        keywords = [term["term"] for term in info["thesaurus_terms"] if "term" in term]
+        logging.debug('set keywords %s', keywords)
+        page.set_keywords(keywords)
+    else:
+        logging.debug('keywords already present')
+
+    driver.find_element_by_id("widgetContributorEdit_dc_authority_people").click()
+    authors_field = driver.find_element_by_id("widgetContributorSplitTextarea_dc_authority_people")
+    authors_field.clear()
+    authors_field.send_keys('; '.join(info['local_authors']))
+    driver.find_element_by_id("widgetContributorParse_dc_authority_people").click()
+
+    page.set_type_contribution()
+    page.set_type_referee()
+    page.set_type_research()
+    page.set_type_publication()
+
+    element_field = driver.find_element_by_id("dc_authority_academicField2000")
+    element_field.clear()
+    element_field.send_keys("FIS/01")
+    WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, '//a[text()="Settore FIS/01 - Fisica Sperimentale"]'))).click()
+
+    driver.find_element_by_xpath('//button[@value="Aggiungi ancora"]').click()
+
+    element_field = driver.find_element_by_id("dc_authority_academicField2000")
+    element_field.clear()
+    element_field.send_keys("FIS/04")
+    WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, '//a[text()="Settore FIS/04 - Fisica Nucleare e Subnucleare"]'))).click()
 
     import pdb; pdb.set_trace()
+
+    page.next_page()
 
     return ReturnValue.SUCCESS
 
 
-class PageDescrivere2:
+class Page:
     def __init__(self, driver):
         self.driver = driver
+
+    def select_hidden(self, element, value):
+        old_class = element.get_attribute('class')
+        self.driver.execute_script("arguments[0].setAttribute('class', '')", element)
+        sel = Select(element)
+        sel.select_by_visible_text(value)
+        self.driver.execute_script("arguments[0].setAttribute('class', '%s')" % old_class, element)
+
+
+class PageDescrivere2(Page):
+    def __init__(self, driver):
+        super().__init__(driver)
 
     def set_title(self, title):
         element_title = self.driver.find_element_by_id("dc_title_id")
@@ -165,11 +224,17 @@ class PageDescrivere2:
         element_abstract.send_keys(abstract)
 
     def get_abstract(self):
-        element_abstract = self.driver.find_element_by_name('dc_description_value')
-        return element_abstract.text
+        xpath = r'//label[text()="Abstract"]/..//textarea'
+        textareas = self.driver.find_elements_by_xpath(xpath)
 
-    def set_keywords(self, keyworkds):
-        k = '; '.join('keywords')
+        for textarea in textareas:
+            WebDriverWait(self.driver, 10).until(EC.visibility_of(textarea))
+            text = textarea.text
+            if text:
+                return text
+
+    def set_keywords(self, keywords):
+        k = '; '.join(keywords)
         element_keywords = self.driver.find_element_by_id('dc_subject_keywords_id')
         element_keywords.clear()
         element_keywords.send_keys(k)
@@ -177,6 +242,25 @@ class PageDescrivere2:
     def get_keywords(self):
         element_keywords = self.driver.find_element_by_id('dc_subject_keywords_id')
         return element_keywords.text
+
+    def set_type_contribution(self):
+        element_type_contribution = self.driver.find_element_by_xpath('//select[@name="dc_type_contribution"]')
+        self.select_hidden(element_type_contribution, 'Articolo')
+
+    def set_type_referee(self):
+        element_type_referee = self.driver.find_element_by_xpath('//select[@name="dc_type_referee"]')
+        self.select_hidden(element_type_referee, 'Esperti anonimi')
+
+    def set_type_research(self):
+        element_type_referee = self.driver.find_element_by_xpath('//select[@name="dc_type_research"]')
+        self.select_hidden(element_type_referee, 'Ricerca di base')
+
+    def set_type_publication(self):
+        element_type_publication = self.driver.find_element_by_xpath('//select[@name="dc_type_publication"]')
+        self.select_hidden(element_type_publication, 'Pubblicazione scientifica')
+
+    def next_page(self):
+        driver.driver.find_element_by_name("submit_next").click()
 
 
 def upload(driver, info):
@@ -242,4 +326,4 @@ if __name__ == '__main__':
     #                'keywords': ['key1', 'key2'],
     #                'abstract': 'my abstract',
     #                'authors': ['Attilio Andreazza', 'Leonardo Carminati']})
-    upload_from_doi(driver, None)
+    upload_from_doi(driver, {'doi': '10.1140/epjc/s10052-018-6374-z'})
