@@ -62,10 +62,18 @@ class StatBox(Gtk.Box):
 
 class MyWindow(Gtk.Window):
 
-    def __init__(self):
+    def __init__(self, air_file=None, inspire_file=None):
         Gtk.Window.__init__(self, title="Air Stuff")
 
         self.set_default_size(800, 350)
+        self.create_interface()
+
+        if air_file is not None:
+            self.upload_air_from_file(air_file)
+        if inspire_file is not None:
+            self.upload_inspire_from_file(inspire_file)
+
+    def create_interface(self):
         main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.add(main_box)
 
@@ -223,7 +231,6 @@ class MyWindow(Gtk.Window):
             with lock:
                 GLib.idle_add(self.add_inspire, item)
 
-
         self.inspire_query = inspire.InspireQuery(query=inspire.ATLAS_QUERY, callback=f)
         self.inspire_query.run()
 
@@ -253,7 +260,9 @@ class MyWindow(Gtk.Window):
 
         if not fn:
             return
+        self.upload_inspire_from_file(fn)
 
+    def upload_inspire_from_file(self, fn):
         with open(fn) as f:
             for line in f:
                 row = line.split('\t')
@@ -293,7 +302,9 @@ class MyWindow(Gtk.Window):
 
         if not fn:
             return
+        self.upload_air_from_file(fn)
 
+    def upload_air_from_file(self, fn):
         with open(fn) as f:
             for iline, line in enumerate(f, 1):
                 row = line.split('\t')
@@ -329,16 +340,23 @@ class MyWindow(Gtk.Window):
         new_window.show_all()
 
 
-def app_main():
-    win = MyWindow()
+def app_main(args):
+    win = MyWindow(air_file=args.air_file, inspire_file=args.inspire_file)
     win.connect("destroy", Gtk.main_quit)
     win.show_all()
 
 
 if __name__ == '__main__':
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Air Stuff')
+    parser.add_argument('--air-file', help='txt file with air entries')
+    parser.add_argument('--inspire-file', help='txt file with inspire entries')
+    args = parser.parse_args()
+
     import threading
     threading.Thread(target=lambda: None).start()
     GObject.threads_init()
 
-    app_main()
+    app_main(args)
     Gtk.main()

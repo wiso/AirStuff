@@ -121,8 +121,10 @@ class WindowDoi(Gtk.Window):
         selected_institutes = set([self.entry_institute.get_text()])
         if not selected_institutes:
             logging.warning('no institute specified')
+
         selected_authors = [author['full_name'] for author in info['authors']
-                            if selected_institutes.intersection(set(author['affiliation']))]
+                            if selected_institutes.intersection(set(author.get('affiliation', [])))]
+        self.info['local_authors'] = selected_authors
         if not selected_authors:
             logging.warning('no author found for institute %s', selected_institutes)
 
@@ -157,9 +159,14 @@ class WindowDoi(Gtk.Window):
         r = driver_air.upload_from_doi(self.driver, self.info)
         if r == driver_air.ReturnValue.DUPLICATE:
             logging.warning('do not create duplicate')
+            self.ignore_in_future(self.info['doi'])
         d = self.driver
         d.close()
         del d
+
+    def ignore_in_future(self, doi):
+        with open('blacklist.txt', 'a') as f:
+            f.write('%s\n' % doi)
 
 
 def app_main(doi=None, institute=None):
