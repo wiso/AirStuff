@@ -57,7 +57,6 @@ class CallBackConsumer(threading.Thread):
         while True:
             if not self.input_queue.empty():
                 item = self.input_queue.get()
-                logging.debug('calling callback with input %s' % item)
                 self.callback(item)
                 self.input_queue.task_done()
             if self.stop_event is not None and self.stop_event.is_set() and self.input_queue.empty():

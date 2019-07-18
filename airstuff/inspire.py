@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.DEBUG, format='%(name)s %(levelname)6d %(threa
 
 URL_SEARCH = "http://inspirehep.net/search"
 
-ATLAS_QUERY = "collaboration:'ATLAS' AND collection:published and NOT collection:conferencepaper and collection:citeable"
+ATLAS_QUERY = 'collaboration:"ATLAS" AND collection:published and NOT collection:conferencepaper and collection:citeable'
 
 
 def query_inspire(query, rg=100, jrec=1, ot=None):
@@ -109,6 +109,7 @@ import threading
 import queue
 
 ndone = 0
+nlow_author = 0
 lock_ndone = threading.Lock()
 
 
@@ -135,10 +136,18 @@ class InspireConsumer(threading.Thread):
                         logging.debug('stop event set')
 
                 for rr in r:
-                    self.output_queue.put(fix_info(rr))
                     with lock_ndone:
                         global ndone
                         ndone += 1
+                    info_fixed = fix_info(rr)
+                    if info_fixed['number_of_authors'] < 30:  ## TODO: FIXME
+                        logging.debug('ignoring %s %s since it has only %d authors',
+                                      info_fixed['doi'], info_fixed['title'], info_fixed['number_of_authors'])
+                        with lock_ndone:
+                            global nlow_author
+                            nlow_author += 1
+                        continue
+                    self.output_queue.put(info_fixed)
                 logging.debug('found %d entries from offset %s', len(r), offset)
                 self.input_queue.task_done()
         logging.debug('thread at the end')
@@ -189,19 +198,19 @@ class InspireQuery():
         queue_duplicates = queue.Queue()
 
         for w in range(self.nworkers):
-            worker = InspireConsumer(self.input_queue, queue_duplicates, self.query, self.buf_size, stop_event=self.stop_event)
+            worker = InspireConsumer(self.input_queue, self.output_queue, self.query, self.buf_size, stop_event=self.stop_event)
             worker.name = 'consumer-%d' % w
             worker.setDaemon(True)
             self.all_workers.append(worker)
             worker.start()
         logging.debug('worker started')
 
-        for w in range(2):
-            worker = DuplicateFilter(queue_duplicates, self.output_queue, stop_event=self.stop_event)
-            worker.name = 'duplicate-%d' % w
-            worker.setDaemon(True)
-            worker.start()
-        logging.debug('worker duplicates started')
+        #for w in range(2):
+        #    worker = DuplicateFilter(queue_duplicates, self.output_queue, stop_event=self.stop_event)
+        #    worker.name = 'duplicate-%d' % w
+        #    worker.setDaemon(True)
+        #    worker.start()
+        #logging.debug('worker duplicates started')
 
         if self.callback is not None:
             self.callback_worker = CallBackConsumer(self.output_queue, self.callback, stop_event=self.stop_event)
@@ -238,7 +247,8 @@ class InspireQuery():
 
         self.status = 'stopped'
         logging.info('all stopped')
-        logging.info("Number of inspire entried found: %d" % ndone)
+        logging.info("Number of inspire entries found: %d" % ndone)
+        logging.info("Ignored %d entries since low author" % nlow_author)
 
         self.stop_event.clear()
 
