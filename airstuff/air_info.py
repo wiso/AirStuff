@@ -133,8 +133,10 @@ class WindowDoi(Gtk.Window):
         eid = get_eid_from_doi(doi)
         if eid is not None:
             self.entry_scopus.set_text(eid)
+            info['scopus'] = eid
 
         wos = get_wos_from_doi(doi)
+        info['wos'] = wos
         self.entry_wos.set_text(wos)
 
         if 'thesaurus_terms' in info:

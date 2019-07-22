@@ -1,6 +1,6 @@
 import gi
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, GObject, GLib
+from gi.repository import Gtk, GObject, GLib, Gio
 from threading import Lock
 import datetime
 import inspire
@@ -73,6 +73,17 @@ class MyWindow(Gtk.Window):
         if inspire_file is not None:
             self.upload_inspire_from_file(inspire_file)
 
+        self.file_blacklist = Gio.File.new_for_path(self.entry_blacklist.get_text())
+        self.monitor_blacklist = self.file_blacklist.monitor_file(Gio.FileMonitorFlags.NONE, None)
+        self.monitor_blacklist.connect("changed", self.changed_file)
+
+    def changed_file(self, m, f, o, event):
+        # Without this check, multiple 'ok's will be printed for each file change
+        if event == Gio.FileMonitorEvent.CHANGES_DONE_HINT:
+            if len(self.table_diff_store):
+                logging.debug('redoing table')
+                self.make_diff(None)
+            
     def create_interface(self):
         main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.add(main_box)
@@ -205,9 +216,13 @@ class MyWindow(Gtk.Window):
 
     def get_blacklist(self):
         fn = self.entry_blacklist.get_text()
-        with open(fn) as f:
-            lines = f.read().split('\n')
-            return [l for l in lines if l]
+        try:
+            with open(fn) as f:
+                lines = f.read().split('\n')
+                return [l for l in lines if l]
+        except FileNotFoundError:
+            logging.warning('file %s not found' % fn)
+            return []
 
     def remove_blacklist(self, button):
         if len(self.table_diff_store):
@@ -345,6 +360,7 @@ class MyWindow(Gtk.Window):
                 self.add_air(item)
 
     def make_diff(self, widget):
+        logging.debug('making diff table')
         air_values = [list(row) for row in self.table_air_store]
         inspire_values = [list(row) for row in self.table_inspire_store]
 

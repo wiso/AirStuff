@@ -5,9 +5,9 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.remote.remote_connection import LOGGER as selenium_logger
 from selenium.common.exceptions import NoSuchElementException
-from selenium.webdriver.support.ui import WebDriverWait
 import pickle
 import time
+import datetime
 from enum import Enum
 import logging
 logging.basicConfig(level=logging.DEBUG)
@@ -32,7 +32,7 @@ def get_driver(debug=False, driver='chrome'):
     if driver == 'chrome':
         logging.info('creating chrome')
         chrome_options = webdriver.ChromeOptions()
-        chrome_options.add_argument("--incognito")
+        #chrome_options.add_argument("--incognito")
         if not debug:
             chrome_options.add_argument("--headless")
             chrome_options.add_argument("--mute-audio")
@@ -97,6 +97,7 @@ def upload_from_doi(driver, info):
         save_cookies(driver)
         driver.get(URL_SUBMIT)
 
+    logging.debug('you are log in')
     driver.find_element_by_xpath("//a[contains(text(), 'Ricerca per identificativo')]").click()
     element_doi = driver.find_element_by_id("identifier_doi")
     logging.debug('waiting for element to be visible')
@@ -120,20 +121,23 @@ def upload_from_doi(driver, info):
     driver.find_element_by_name("submit_grant").click()
 
     # check duplicate
-    
+    logging.debug('checking for duplicate box')
     duplicate_box_titles = driver.find_elements_by_id('duplicateboxtitle')
     
     if duplicate_box_titles:
         box = duplicate_box_titles[0]
+        logging.debug('sleeping one second')
         time.sleep(1)  # FIXME: the problem is that the page is slow and this will be visible only if there will be a duplicate, which I don't know.
         is_displayed = box.is_displayed()
         if box.is_displayed():
+            logging.info("the duplicate box is displayed")
             logging.warning('Trying to insert duplicate')
             WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.ID, 'cancelpopup'))).click()
             WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.NAME, 'submit_remove'))).click()
             return ReturnValue.DUPLICATE
 
     # warning authors
+    logging.info("checking if many authors box")
     many_authors = False
     try:
         driver.find_element_by_xpath("//h4[@class='modal-title' and contains(text(), 'Attenzione')]//../..//button[contains(text(), 'Chiudi')]").click()
@@ -187,6 +191,51 @@ def upload_from_doi(driver, info):
     page.next_page()
 
     page3 = PageDescrivere3(driver)
+
+    if 'imprint' in info and info['imprint']['date']:
+        date = datetime.datetime.fromisoformat(info['imprint']['date'])
+        if page3.get_year():
+            if int(page3.get_year()) != date.year:
+                logging.warning('year is different %s != %s', page3.get_year(), date.year)
+        else:
+            page3.set_year(date.year)
+
+        if page3.get_month():
+            if (int(page3.get_month)) != date.month:
+                logging.warning('month is different %s != %s', page3.get_month(), date.month)
+        else:
+            page3.set_month(date.month)
+        
+        if page3.get_day():
+            if (int(page3.get_day()) != date.day):
+                logging.warning('day is different %s != %s', page3.get_day(), date.day)
+        else:
+            page3.set_day(date.day)
+        
+    page3.set_pub()
+    page3.set_rilevanza()
+
+    # page 4
+    driver.find_element_by_name("submit_next").click()
+
+    # page 5
+    page5 = PageDescrivere5(driver)
+
+    if page5.get_scopus():
+        if page5.get_scopus() != info['scopus']:
+            logging.warning("scopus reference are different %s != %s", info['scopus'], page5.get_scopus())
+    else:
+        logging.info('scopus information not found')
+        page5.set_scopus(info['scopus'])
+
+    if page5.get_wos():
+        if page5.get_wos() != info['wos']:
+            logging.warning("wos reference are different %s != %s", info['wos'], page5.get_wos())
+    else:
+        logging.info("wos information not found")
+        page5.set_wos(info['wos'])
+
+    page5.set_open()
     import pdb; pdb.set_trace()
 
 
@@ -262,12 +311,130 @@ class PageDescrivere2(Page):
         self.select_hidden(element_type_publication, 'Pubblicazione scientifica')
 
     def next_page(self):
-        self.driver.driver.find_element_by_name("submit_next").click()
+        self.driver.find_element_by_name("submit_next").click()
 
 
 class PageDescrivere3(Page):
     def __init__(self, driver):
         super().__init__(driver)
+
+    def get_year(self):
+        el = self.driver.find_element_by_name("dc_date_issued_year")
+        return el.get_attribute('value')
+    
+    def set_year(self, year):
+        el = self.driver.find_element_by_name("dc_date_issued_year")
+        el.clear()
+        el.send_keys(str(year))
+
+    def get_day(self):
+        el = self.driver.find_element_by_name("dc_date_issued_day")
+        return el.get_attribute('value')
+
+    def set_day(self, day):
+        el = self.driver.find_element_by_name("dc_date_issued_day")
+        el.clear()
+        el.send_keys(str(day))
+
+    def get_month(self):
+        el = self.driver.find_element_by_name('dc_date_issued_month')
+        val = el.get_attribute('value')
+        if val == '-1':
+            return None
+        else:
+            return int(val)
+
+    def set_month(self, month):
+        el = self.driver.find_element_by_name('dc_date_issued_month')
+        sel = Select(el)
+        sel.select_by_value(str(month))
+
+    def set_pub(self):
+        el = self.driver.find_element_by_xpath('//select[@name="dc_type_publicationstatus"]')
+        self.select_hidden(el, 'Pubblicato')
+
+    def set_rilevanza(self):
+        el = self.driver.find_element_by_xpath('//select[@name="dc_type_circulation"]')
+        self.select_hidden(el, 'Periodico con rilevanza internazionale')
+
+    def next_page(self):
+        self.driver.find_element_by_name("submit_next").click()
+
+
+class PageDescrivere5(Page):
+    def __init__(self, driver):
+        super().__init__(driver)
+
+    def get_scopus(self):
+        els = self.driver.find_elements_by_xpath('//label[text()="Codice identificativo in banca dati"]/..//Select/option[@selected="selected"]')
+        scopus_select = None
+        for el in els:
+            if el.text == 'Scopus':
+                scopus_select = el
+                break
+        if not scopus_select:
+            return None
+        
+        scopus_id = el.find_element_by_xpath('../../..//input[@class="form-control"]').get_attribute('value')
+        if not scopus_id:
+            return None
+        return scopus_id
+
+    def set_scopus(self, scopus_id):
+        els = self.driver.find_elements_by_xpath('//label[text()="Codice identificativo in banca dati"]/..//Select/option[@selected="selected"]')
+        scopus_select = None
+        for el in els:
+            if el.text == 'Scopus':
+                scopus_select = el
+                break
+        if scopus_select:
+            scopus_element = el.find_element_by_xpath('../../..//input[@class="form-control"]')
+            scopus_element.clear()
+            scopus_element.send_keys(scopus_id)
+        else:
+            el2 = scopus_selected.find_element_by_xpath('../../../../../..//select[@name="dc_identifier_qualifier"]')
+            sel = Select(el2)
+            sel.select_by_value("scopus")
+            el.find_element_by_xpath('../../../../../..//input[@name="dc_identifier_value"]').send_keys(scopus_id)
+
+    def get_wos(self):
+        els = self.driver.find_elements_by_xpath('//label[text()="Codice identificativo in banca dati"]/..//Select/option[@selected="selected"]')
+        isi_select = None
+        for el in els:
+            if el.text == 'ISI':
+                isi_select = el
+                break
+        if not isi_select:
+            return None
+        
+        isi_id = el.find_element_by_xpath('../../..//input[@class="form-control"]').get_attribute('value')
+        if not isi_id:
+            return None
+        return isi_id
+
+    def set_wos(self, isi_id):
+        els = self.driver.find_elements_by_xpath('//label[text()="Codice identificativo in banca dati"]/..//Select/option[@selected="selected"]')
+        isi_select = None
+        for el in els:
+            if el.text == 'ISI':
+                isi_select = el
+                break
+        if isi_select:
+            isi_element = el.find_element_by_xpath('../../..//input[@class="form-control"]')
+            isi_element.clear()
+            isi_element.send_keys(isi_id)
+        else:
+            el2 = el.find_element_by_xpath('../../../../../..//select[@name="dc_identifier_qualifier"]')
+            sel = Select(el2)
+            sel.select_by_value("ISI")
+            el.find_element_by_xpath('../../../../../..//input[@name="dc_identifier_value"]').send_keys(isi_id)            
+
+    def next_page(self):
+        self.driver.find_element_by_name("submit_next").click()
+
+    def set_open(self):
+        el = self.driver.find_element_by_xpath('//select[@name="dc_iris_checkpolicy"]')
+        self.select_hidden(el, 'Aderisco')
 
 
 def upload(driver, info):
