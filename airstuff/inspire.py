@@ -65,28 +65,35 @@ def fix_title(title):
 
 def fix_info(info):
     if 'doi' in info:
-        if type(info['doi']) is list:
-            if len(set(info['doi'])) == 1:
-                info['doi'] = info['doi'][0]
-            else:
-                logging.warning('multiple doi: %s', info['doi'])
-                info['doi'] = info['doi'][0]
+        if type(info['doi']) is str:
+            info['doi'] = [info['doi']]
+        info['doi'] = [doi.upper() for doi in info['doi']]
+        info['doi'] = sorted(list(set(info['doi'])))
+
+    if 'date' in info and type(info['date'] is datetime):
+        pass
+    else:
+        date = '?'
+        if 'imprint' in info and info['imprint'] is not None and 'date' in info['imprint']:
+            date = info['imprint']['date']
+        elif 'prepublication' in info and info['prepublication'] is not None and 'date' in info['prepublication']:
+            date = info['prepublication']['date']
+        info['date'] = date
+
     if 'title' in info:
-        info['title'] = fix_title(info['title'])
-    if 'creation_date' in info:
-        if type(info['creation_date']) is str:
-            info['creation_date'] = datetime.fromisoformat(info['creation_date'])
+        info['title'] = fix_title(info['title'])    
+
     return info
 
 
 def get_all_collaboration(collaboration, infos=None):
-    infos = infos or ['recid', 'creation_date', 'number_of_authors', 'system_control_number', 'doi', 'title']
+    infos = infos or ['recid', 'imprint', 'prepublication', 'number_of_authors', 'system_control_number', 'doi', 'title']
     nthread = 10
     shift = 20
     offset = 1
 
     def get(offset):
-        query = "collaboration:'%s' AND collection:published" % collaboration
+        query = ATLAS_QUERY.replace("ATLAS", collaboration)
         return query_inspire(query, shift, offset, infos)
 
     while True:
@@ -99,6 +106,8 @@ def get_all_collaboration(collaboration, infos=None):
             for rr in r:
                 dobreak = False
                 for rrr in rr:
+                    if int(rrr['number_of_authors']) < 30:
+                        continue
                     yield fix_info(rrr)
                 if not rr:
                     dobreak = True
@@ -122,7 +131,7 @@ class InspireConsumer(threading.Thread):
         self.query = query
         self.step = step
         self.stop_event = stop_event
-        self.infos = infos or ['recid', 'creation_date', 'number_of_authors', 'system_control_number', 'doi', 'title']
+        self.infos = infos or ['recid', 'imprint', 'prepublication', 'number_of_authors', 'system_control_number', 'doi', 'title']
 
     def run(self):
         while self.stop_event is None or not self.stop_event.is_set():
@@ -141,7 +150,7 @@ class InspireConsumer(threading.Thread):
                         global ndone
                         ndone += 1
                     info_fixed = fix_info(rr)
-                    if info_fixed['number_of_authors'] < 30:  ## TODO: FIXME
+                    if int(info_fixed['number_of_authors']) < 30:  ## TODO: FIXME
                         logging.debug('ignoring %s %s since it has only %d authors',
                                       info_fixed['doi'], info_fixed['title'], info_fixed['number_of_authors'])
                         with lock_ndone:
@@ -235,7 +244,7 @@ class InspireQuery():
 
         logging.info('wait consumer to join')
         for worker in self.all_workers:
-            worker.join()
+            #worker.join()
             logging.debug('worker %s joined' % worker.name)
 
         if self.callback_worker is not None:
@@ -255,6 +264,13 @@ class InspireQuery():
 
 
 if __name__ == '__main__':
+
+    f = open('temp.txt', 'w')
+    for x in get_all_collaboration('ATLAS'):
+        to_write = '%s\t%s\t%s' % (','.join(x['doi']), x['title'], x['date'])
+        print(to_write)
+        f.write(to_write + '\n')
+    exit()
 
     import time
     import argparse
@@ -283,9 +299,9 @@ if __name__ == '__main__':
             if item['doi'] in doi_set:
                 logging.warning('duplicate: %s' % item['doi'])
             doi_set.add(item['doi'])
-            print("%4d %40s %30s %s" % (ifound, item['doi'], str(item['title'][:30]), item['creation_date']))
+            print("%4d %40s %30s %s" % (ifound, item['doi'], str(item['title'][:30]), item['imprint']['date']))
             if fout is not None:
-                fout.write("%s\t%s\t%s\n" % (item['doi'], item['title'], item['creation_date']))
+                fout.write("%s\t%s\t%s\n" % (item['doi'], item['title'], item['imprint']['date']))
             ifound += 1
 
     start_time = time.time()
@@ -301,5 +317,4 @@ if __name__ == '__main__':
             logging.info("stopped")
             logging.info("found %d publications" % len(all_publications))
             break
-    #for x in get_all_collaboration('ATLAS'):
-    #    print(x['creation_date'], x['doi'], x['title'])
+    

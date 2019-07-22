@@ -184,9 +184,11 @@ def upload_from_doi(driver, info):
     element_field.send_keys("FIS/04")
     WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, '//a[text()="Settore FIS/04 - Fisica Nucleare e Subnucleare"]'))).click()
 
+    page.next_page()
+
+    page3 = PageDescrivere3(driver)
     import pdb; pdb.set_trace()
 
-    page.next_page()
 
     return ReturnValue.SUCCESS
 
@@ -260,7 +262,12 @@ class PageDescrivere2(Page):
         self.select_hidden(element_type_publication, 'Pubblicazione scientifica')
 
     def next_page(self):
-        driver.driver.find_element_by_name("submit_next").click()
+        self.driver.driver.find_element_by_name("submit_next").click()
+
+
+class PageDescrivere3(Page):
+    def __init__(self, driver):
+        super().__init__(driver)
 
 
 def upload(driver, info):

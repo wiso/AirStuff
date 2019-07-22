@@ -159,7 +159,10 @@ class WindowDoi(Gtk.Window):
         r = driver_air.upload_from_doi(self.driver, self.info)
         if r == driver_air.ReturnValue.DUPLICATE:
             logging.warning('do not create duplicate')
-            self.ignore_in_future(self.info['doi'])
+            doi = self.info['doi']
+            if type(doi) == list:
+                doi = doi[0]
+            self.ignore_in_future(doi)
         d = self.driver
         d.close()
         del d

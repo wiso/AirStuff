@@ -163,6 +163,16 @@ class MyWindow(Gtk.Window):
         box_diff.pack_start(button_diff, True, True, 0)
         main_box.add(box_diff)
 
+        self.entry_blacklist = Gtk.Entry()
+        self.entry_blacklist.set_text("blacklist.txt")
+        box_diff.pack_start(self.entry_blacklist, True, True, 0)
+
+        self.button_blacklist = Gtk.CheckButton()
+        self.button_blacklist.set_label("Remove blacklist")
+        box_diff.pack_start(self.button_blacklist, True, True, 0)
+        self.button_blacklist.set_active(True)
+        self.button_blacklist.connect("toggled", self.remove_blacklist)
+
         # diff table
         box_table_diff = Gtk.Box()
         main_box.add(box_table_diff)
@@ -192,6 +202,17 @@ class MyWindow(Gtk.Window):
         button_go = Gtk.Button(label='process selected')
         button_go.connect('clicked', self.go)
         box_action.pack_start(button_go, True, True, 0)
+
+    def get_blacklist(self):
+        fn = self.entry_blacklist.get_text()
+        with open(fn) as f:
+            lines = f.read().split('\n')
+            return [l for l in lines if l]
+
+    def remove_blacklist(self, button):
+        if len(self.table_diff_store):
+            logging.debug('redoing table')
+            self.make_diff(None)
 
     def run_stop_inspire(self, widget):
         if self.inspire_running:
@@ -240,8 +261,8 @@ class MyWindow(Gtk.Window):
 
     def add_inspire(self, item):
         item = inspire.fix_info(item)
-        self.table_inspire_store.append([item['doi'], str(item['title']), str(item['creation_date'])])
-        self.stat_box_inspire.fill(item['creation_date'].year)
+        self.table_inspire_store.append([','.join(item['doi']), str(item['title']), str(item['date'])])
+        self.stat_box_inspire.fill(item['date'].year)
 
     def upload_inspire(self, item):
         dlg = Gtk.FileChooserDialog(title="Please choose a file",
@@ -266,7 +287,16 @@ class MyWindow(Gtk.Window):
         with open(fn) as f:
             for line in f:
                 row = line.split('\t')
-                item = {'doi': row[0].strip(), 'title': row[1].strip(), 'creation_date': datetime.datetime.fromisoformat(row[2].strip())}
+                date = row[2].strip()
+                try:
+                    date = datetime.datetime.fromisoformat(date)
+                except ValueError:
+                    try:
+                        date = datetime.datetime.strptime(date, '%Y-%m')
+                    except ValueError:
+                        date = datetime.datetime.strptime(date, '%Y')
+                item = {'doi': row[0].strip(), 'title': row[1].strip(), 'date': date}
+
                 self.add_inspire(item)
 
     def run_air(self):
@@ -318,18 +348,31 @@ class MyWindow(Gtk.Window):
         air_values = [list(row) for row in self.table_air_store]
         inspire_values = [list(row) for row in self.table_inspire_store]
 
+        doi_blacklisted = []
+        if self.button_blacklist.get_active():
+            doi_blacklisted = self.get_blacklist()
+        logging.debug('blacklist = %s', doi_blacklisted)
+
         dois_air = set(v[0] for v in air_values)
-        dois_inspire = set(v[0] for v in inspire_values)
-        dois_diff = dois_inspire - dois_air
-
+        dois_inspire_not_air = set()
         info_diff = []
-        for d in inspire_values:
-            if d[0] in dois_diff:
-                info_diff.append(d)
+        for inspire_info in inspire_values:
+            doi_inspire = inspire_info[0].split(',')
+            found = False
+            for d in doi_inspire:
+                if d in dois_air:
+                    found = True
+            if not found:
+                dois_inspire_not_air = doi_inspire[0]
 
+                info_diff.append([doi_inspire[0], inspire_info[1], inspire_info[2]])
+
+        self.stat_box_diff.reset()
+        self.table_diff_store.clear()
         for item in info_diff:
-            self.table_diff_store.append([item[0], str(item[1]), str(item[2])])
-            self.stat_box_diff.fill(datetime.datetime.fromisoformat(item[2]).year)
+            if not item[0] in doi_blacklisted:
+                self.table_diff_store.append([item[0], str(item[1]), str(item[2])])
+                self.stat_box_diff.fill(datetime.datetime.fromisoformat(item[2]).year)
 
     def go(self, widget):
         index_selected = self.table_diff_view.get_selection().get_selected_rows()

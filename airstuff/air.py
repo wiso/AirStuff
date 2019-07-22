@@ -100,6 +100,7 @@ class AirConsumer(threading.Thread):
                     if 'doi' not in info:
                         logging.info("skipping %s", info)
                         continue
+                    info['doi'] = info['doi'].upper()
                     logging.debug('putting info for %s into queue' % info['doi'])
                     info['title'] = info['title'].replace('\n', ' ').replace('\t', ' ')
                     info = {k: info[k] for k in ('doi', 'title', 'year')}
