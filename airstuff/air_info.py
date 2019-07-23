@@ -7,6 +7,7 @@ from inspire import query_inspire, fix_info
 from scopus import get_eid_from_doi
 from wos import get_wos_from_doi
 import driver_air
+import journals
 
 
 class WindowDoi(Gtk.Window):
@@ -63,6 +64,9 @@ class WindowDoi(Gtk.Window):
 
         wos, _, self.entry_wos = self.create_row('web of knoledge', copy=True)
         main_box.pack_start(wos, True, True, 0)
+
+        pdf_url, _, self.entry_pdf_url = self.create_row('url link', copy=True)
+        main_box.pack_start(pdf_url, True, True, 0)
 
         frame_selenium = Gtk.Frame(label='automatic insertion')
         main_box.pack_start(frame_selenium, True, True, 0)
@@ -142,6 +146,12 @@ class WindowDoi(Gtk.Window):
         if 'thesaurus_terms' in info:
             keywords = [k['term'] for k in info['thesaurus_terms'] if 'term' in k]
             self.entry_keyworkds.set_text(';'.join(keywords))
+
+        logging.info('getting url from journal')
+        pdf_url = journals.get_pdf_url(doi)
+        if pdf_url:
+            info['pdf_url'] = pdf_url
+            self.entry_pdf_url.set_text(pdf_url)
 
     @property
     def driver(self):

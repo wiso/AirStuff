@@ -205,7 +205,7 @@ def upload_from_doi(driver, info):
                 logging.warning('month is different %s != %s', page3.get_month(), date.month)
         else:
             page3.set_month(date.month)
-        
+       
         if page3.get_day():
             if (int(page3.get_day()) != date.day):
                 logging.warning('day is different %s != %s', page3.get_day(), date.day)
@@ -214,6 +214,7 @@ def upload_from_doi(driver, info):
         
     page3.set_pub()
     page3.set_rilevanza()
+    page3.next_page()
 
     # page 4
     driver.find_element_by_name("submit_next").click()
@@ -236,9 +237,21 @@ def upload_from_doi(driver, info):
         page5.set_wos(info['wos'])
 
     page5.set_open()
-    import pdb; pdb.set_trace()
+    page5.set_url('')  # remove url since the automatic one link to the journal and not to the article
+    page5.next_page()
 
+    # page 6
+    page6 = PageCarica6()
+    page6.send_file(fn_pdf)
+    page6.sito_docente(False)
+    page6.next_page()
 
+    # page 6/bis
+    driver.find_element_by_name("submit_next").click()
+
+    # page7
+    driver.find_element_by_name("submit_next").click()
+    
     return ReturnValue.SUCCESS
 
 
@@ -382,20 +395,22 @@ class PageDescrivere5(Page):
 
     def set_scopus(self, scopus_id):
         els = self.driver.find_elements_by_xpath('//label[text()="Codice identificativo in banca dati"]/..//Select/option[@selected="selected"]')
-        scopus_select = None
+        scopus_selected = None
         for el in els:
             if el.text == 'Scopus':
-                scopus_select = el
+                scopus_selected = el
                 break
-        if scopus_select:
-            scopus_element = el.find_element_by_xpath('../../..//input[@class="form-control"]')
+        if scopus_selected:
+            scopus_element = scopus_selected.find_element_by_xpath('../../..//input[@class="form-control"]')
             scopus_element.clear()
             scopus_element.send_keys(scopus_id)
         else:
-            el2 = scopus_selected.find_element_by_xpath('../../../../../..//select[@name="dc_identifier_qualifier"]')
+            el2 = els[0].find_element_by_xpath('../../../../../..//select[@name="dc_identifier_qualifier"]')
             sel = Select(el2)
             sel.select_by_value("scopus")
-            el.find_element_by_xpath('../../../../../..//input[@name="dc_identifier_value"]').send_keys(scopus_id)
+            el_field = el.find_element_by_xpath('../../../../../..//input[@name="dc_identifier_value"]')
+            el_field.clear()
+            el_field.send_keys(scopus_id)
 
     def get_wos(self):
         els = self.driver.find_elements_by_xpath('//label[text()="Codice identificativo in banca dati"]/..//Select/option[@selected="selected"]')
@@ -414,20 +429,22 @@ class PageDescrivere5(Page):
 
     def set_wos(self, isi_id):
         els = self.driver.find_elements_by_xpath('//label[text()="Codice identificativo in banca dati"]/..//Select/option[@selected="selected"]')
-        isi_select = None
+        isi_selected = None
         for el in els:
             if el.text == 'ISI':
-                isi_select = el
+                isi_selected = el
                 break
-        if isi_select:
-            isi_element = el.find_element_by_xpath('../../..//input[@class="form-control"]')
+        if isi_selected:
+            isi_element = isi_selected.find_element_by_xpath('../../..//input[@class="form-control"]')
             isi_element.clear()
             isi_element.send_keys(isi_id)
         else:
-            el2 = el.find_element_by_xpath('../../../../../..//select[@name="dc_identifier_qualifier"]')
+            el2 = els[0].find_element_by_xpath('../../../../../..//select[@name="dc_identifier_qualifier"]')
             sel = Select(el2)
-            sel.select_by_value("ISI")
-            el.find_element_by_xpath('../../../../../..//input[@name="dc_identifier_value"]').send_keys(isi_id)            
+            sel.select_by_value("isi")
+            el_field = els[0].find_element_by_xpath('../../../../../..//input[@name="dc_identifier_value"]')
+            el_field.clear()
+            el_field.send_keys(isi_id)            
 
     def next_page(self):
         self.driver.find_element_by_name("submit_next").click()
@@ -435,6 +452,31 @@ class PageDescrivere5(Page):
     def set_open(self):
         el = self.driver.find_element_by_xpath('//select[@name="dc_iris_checkpolicy"]')
         self.select_hidden(el, 'Aderisco')
+
+    def set_url(self, url):
+        el = self.driver.find_element_by_id("dc_identifier_url")
+        el.clear()
+        if url:
+            el.send_keys(url)
+
+
+class PageCarica6(Page):
+    def __init__(self, driver):
+        super().__init__(driver)
+
+    def send_file(self, fn):
+        el = self.driver.find_element_by_id("tfile")
+        self.driver.execute_script('arguments[0].style = ""; arguments[0].style.display = "block"; arguments[0].style.visibility = "visible";', el)
+        el.send_keys(fn)
+
+    def sito_docente(self, value):
+        el = self.driver.find_element_by_id('sitodoc')
+        sel = Select(el)
+        sel.select_by_value('true' if value else 'false')
+
+    def next_page(self):
+        self.driver.find_element_by_name("submit_upload").click()
+
 
 
 def upload(driver, info):

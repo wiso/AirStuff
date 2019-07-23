@@ -1,11 +1,12 @@
 import requests
+import codecs
 import logging
 logging.basicConfig(level=logging.DEBUG)
 logging.getLogger("requests").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 
-API_KEY = 'a929befb1fbb5c7e1c5cc994b6188472'
+API_KEY = codecs.encode('n929orso1soo5p7r1p5pp994o6188472', 'rot13')
 
 
 def get_eid_from_doi(doi):
@@ -16,10 +17,10 @@ def get_eid_from_doi(doi):
     entries = json['search-results']['entry']
     
     if len(entries) == 0:
-        logging.warning("no results from doi %s", doi)
+        logging.warning("cannot find scopus from doi %s", doi)
         return None
     if len(entries) == 1 and 'error' in entries[0]:
-        logging.warning("no results from doi %s", doi)
+        logging.warning("cannot find scopus from doi %s", doi)
         return None
     if len(entries) != 1:
         logging.warning('multiple results from doi %s', doi)
