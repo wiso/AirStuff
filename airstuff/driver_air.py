@@ -8,6 +8,8 @@ from selenium.common.exceptions import NoSuchElementException
 import pickle
 import time
 import datetime
+import requests
+import tempfile
 from enum import Enum
 import logging
 logging.basicConfig(level=logging.DEBUG)
@@ -82,7 +84,7 @@ def load_cookie(driver):
     logging.info('%d cookies have been loaded' % len(cookies))
 
 
-def upload_from_doi(driver, info):
+def upload_from_doi(driver, info, pause=True):
     driver.get('https://air.unimi.it')
     try:
         load_cookie(driver)
@@ -145,7 +147,7 @@ def upload_from_doi(driver, info):
     except NoSuchElementException:
         pass
 
-    page = PageDescrivere2(driver)
+    page = PageDescrivere2(driver, pause=pause)
     logging.debug('filling page Descrivere 2')
     if not page.get_title():
         logging.debug('set title %s', info['title'])
@@ -190,7 +192,7 @@ def upload_from_doi(driver, info):
 
     page.next_page()
 
-    page3 = PageDescrivere3(driver)
+    page3 = PageDescrivere3(driver, pause=pause)
 
     if 'imprint' in info and info['imprint']['date']:
         date = datetime.datetime.fromisoformat(info['imprint']['date'])
@@ -198,18 +200,21 @@ def upload_from_doi(driver, info):
             if int(page3.get_year()) != date.year:
                 logging.warning('year is different %s != %s', page3.get_year(), date.year)
         else:
+            logging.debug('setting year %s', date.year)
             page3.set_year(date.year)
 
         if page3.get_month():
             if (int(page3.get_month)) != date.month:
                 logging.warning('month is different %s != %s', page3.get_month(), date.month)
         else:
+            logging.debug('setting month %s', date.month)
             page3.set_month(date.month)
        
         if page3.get_day():
             if (int(page3.get_day()) != date.day):
                 logging.warning('day is different %s != %s', page3.get_day(), date.day)
         else:
+            logging.debug('setting day %s', date.day)
             page3.set_day(date.day)
         
     page3.set_pub()
@@ -220,7 +225,7 @@ def upload_from_doi(driver, info):
     driver.find_element_by_name("submit_next").click()
 
     # page 5
-    page5 = PageDescrivere5(driver)
+    page5 = PageDescrivere5(driver, pause=pause)
 
     if page5.get_scopus():
         if page5.get_scopus() != info['scopus']:
@@ -233,7 +238,8 @@ def upload_from_doi(driver, info):
         if page5.get_wos() != info['wos']:
             logging.warning("wos reference are different %s != %s", info['wos'], page5.get_wos())
     else:
-        logging.info("wos information not found")
+        logging.debug("wos information not found")
+        logging.debug("setting wos to %s", info['wos'])
         page5.set_wos(info['wos'])
 
     page5.set_open()
@@ -241,13 +247,42 @@ def upload_from_doi(driver, info):
     page5.next_page()
 
     # page 6
-    page6 = PageCarica6()
-    page6.send_file(fn_pdf)
+    page6 = PageCarica6(driver, pause=pause)
+    
+
+    if info.get('pdf_url', None):
+        logging.debug('downloading pdf from %s', info['pdf_url'])
+        header = requests.head(info['pdf_url'], allow_redirects=True)
+        if header.status_code >= 400:
+            logging.error('cannot download pdf with url %s', url['pdf_url'])
+        else:
+            content_length = header.headers.get('content-length', None)
+            if content_length is not None:
+                print(content_length)
+                logging.debug('downloading %s KB pdf', float(content_length) / 1024.)
+            r = requests.get(info['pdf_url'], stream=True, allow_redirects=True)
+            with tempfile.NamedTemporaryFile('wb') as ftemp:
+                dl = 0
+                for chunk in r.iter_content(chunk_size=1024 * 512): 
+                    if chunk:
+                        dl += len(chunk)
+                        ftemp.write(chunk)
+                        ftemp.flush()
+                        if content_length:
+                            percent = '%.1f%%' % (dl / float(content_length) * 100)
+                        else:
+                            percent = ''
+                        print('downloaded %d KB %s' % (dl, percent))
+
+                page6.send_file(ftemp.name)
+
     page6.sito_docente(False)
+
     page6.next_page()
 
     # page 6/bis
-    driver.find_element_by_name("submit_next").click()
+    page6 = Page(driver, pause)
+    page6.next_page()
 
     # page7
     driver.find_element_by_name("submit_next").click()
@@ -256,8 +291,11 @@ def upload_from_doi(driver, info):
 
 
 class Page:
-    def __init__(self, driver):
+    next_name = 'submit_next'
+
+    def __init__(self, driver, pause=True):
         self.driver = driver
+        self.pause = pause
 
     def select_hidden(self, element, value):
         old_class = element.get_attribute('class')
@@ -266,10 +304,15 @@ class Page:
         sel.select_by_visible_text(value)
         self.driver.execute_script("arguments[0].setAttribute('class', '%s')" % old_class, element)
 
+    def next_page(self):
+        if self.pause:
+            input('press ENTER to go to next page')
+        self.driver.find_element_by_name(self.next_name).click()
+
 
 class PageDescrivere2(Page):
-    def __init__(self, driver):
-        super().__init__(driver)
+    def __init__(self, driver, pause=True):
+        super().__init__(driver, pause)
 
     def set_title(self, title):
         element_title = self.driver.find_element_by_id("dc_title_id")
@@ -323,13 +366,11 @@ class PageDescrivere2(Page):
         element_type_publication = self.driver.find_element_by_xpath('//select[@name="dc_type_publication"]')
         self.select_hidden(element_type_publication, 'Pubblicazione scientifica')
 
-    def next_page(self):
-        self.driver.find_element_by_name("submit_next").click()
 
 
 class PageDescrivere3(Page):
-    def __init__(self, driver):
-        super().__init__(driver)
+    def __init__(self, driver, pause=True):
+        super().__init__(driver, pause)
 
     def get_year(self):
         el = self.driver.find_element_by_name("dc_date_issued_year")
@@ -370,13 +411,10 @@ class PageDescrivere3(Page):
         el = self.driver.find_element_by_xpath('//select[@name="dc_type_circulation"]')
         self.select_hidden(el, 'Periodico con rilevanza internazionale')
 
-    def next_page(self):
-        self.driver.find_element_by_name("submit_next").click()
-
 
 class PageDescrivere5(Page):
-    def __init__(self, driver):
-        super().__init__(driver)
+    def __init__(self, driver, pause=True):
+        super().__init__(driver, pause)
 
     def get_scopus(self):
         els = self.driver.find_elements_by_xpath('//label[text()="Codice identificativo in banca dati"]/..//Select/option[@selected="selected"]')
@@ -446,9 +484,6 @@ class PageDescrivere5(Page):
             el_field.clear()
             el_field.send_keys(isi_id)            
 
-    def next_page(self):
-        self.driver.find_element_by_name("submit_next").click()
-
     def set_open(self):
         el = self.driver.find_element_by_xpath('//select[@name="dc_iris_checkpolicy"]')
         self.select_hidden(el, 'Aderisco')
@@ -461,8 +496,10 @@ class PageDescrivere5(Page):
 
 
 class PageCarica6(Page):
-    def __init__(self, driver):
-        super().__init__(driver)
+    next_name = "submit_upload"
+
+    def __init__(self, driver, pause=True):
+        super().__init__(driver, pause)
 
     def send_file(self, fn):
         el = self.driver.find_element_by_id("tfile")
@@ -473,10 +510,6 @@ class PageCarica6(Page):
         el = self.driver.find_element_by_id('sitodoc')
         sel = Select(el)
         sel.select_by_value('true' if value else 'false')
-
-    def next_page(self):
-        self.driver.find_element_by_name("submit_upload").click()
-
 
 
 def upload(driver, info):

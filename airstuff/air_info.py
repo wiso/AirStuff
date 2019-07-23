@@ -88,6 +88,11 @@ class WindowDoi(Gtk.Window):
         button_start_selenium.connect('clicked', self.start_selenium)
         box_selenium.pack_start(button_start_selenium, True, True, 0)
 
+        self.button_pause = Gtk.CheckButton()
+        self.button_pause.set_label("Wait after each page")
+        box_selenium.pack_start(self.button_pause, True, True, 0)
+        self.button_pause.set_active(True)
+
         if institute is not None:
             self.entry_institute.set_text(institute)
 
@@ -168,7 +173,7 @@ class WindowDoi(Gtk.Window):
         self.browser_name = value
 
     def start_selenium(self, widget):
-        r = driver_air.upload_from_doi(self.driver, self.info)
+        r = driver_air.upload_from_doi(self.driver, self.info, pause=self.button_pause.get_active())
         if r == driver_air.ReturnValue.DUPLICATE:
             logging.warning('do not create duplicate')
             doi = self.info['doi']
