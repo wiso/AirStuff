@@ -11,7 +11,8 @@ from workers import OffsetsProducer, CallBackConsumer, DuplicateFilter
 logging.getLogger("requests").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("bibtexparser").setLevel(logging.WARNING)
-logging.basicConfig(level=logging.DEBUG, format='%(name)s %(levelname)6d %(threadName)s %(message)s')
+import colorlog
+logger = colorlog.getLogger('airstuff.inspire')
 
 
 URL_SEARCH = "http://inspirehep.net/search"

@@ -10,12 +10,18 @@ import datetime
 import requests
 import tempfile
 from enum import Enum
+from colorama import init as init_colorama
+from colorama import Fore, Back, Style
+import colorlog
 import logging
-logging.basicConfig(level=logging.DEBUG)
 logging.getLogger("requests").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("bibtexparser").setLevel(logging.WARNING)
 selenium_logger.setLevel(logging.WARNING)
+
+logger = colorlog.getLogger('airstuff.driverair')
+init_colorama()
+
 
 URL_LOGIN = 'https://air.unimi.it/au/login'
 URL_MYDSPACE = 'https://air.unimi.it/mydspace'
@@ -31,7 +37,7 @@ def get_driver(debug=False, driver='chrome'):
     WINDOW_SIZE = "1920,1080"
 
     if driver == 'chrome':
-        logging.info('creating chrome')
+        logger.info('creating chrome')
         chrome_options = webdriver.ChromeOptions()
         # chrome_options.add_argument("--incognito")
         if not debug:
@@ -41,7 +47,7 @@ def get_driver(debug=False, driver='chrome'):
 
         driver = webdriver.Chrome(options=chrome_options)
     elif driver == 'firefox':
-        logging.info('creating firefox')
+        logger.info('creating firefox')
         firefox_options = webdriver.FirefoxOptions()
         # cookies do not work in firefox private session
         # firefox_options.add_argument("-private")
@@ -61,15 +67,14 @@ def login(driver):
     """Login to the website"""
 
     driver.get(URL_LOGIN)
-
-    input('press enter where you are logged in')
+    input(Fore.RED + Back.GREEN + Style.DIM + 'press ENTER where you are logged in' + Style.RESET_ALL)
     save_cookies(driver)
     driver.quit()
 
 
 def save_cookies(driver):
     cookies = driver.get_cookies()
-    logging.info('saving %d cookies', len(cookies))
+    logger.info('saving %d cookies', len(cookies))
     pickle.dump(cookies, open("cookies.pkl", "wb"))
 
 
@@ -80,7 +85,7 @@ def load_cookie(driver):
 
     for cookie in cookies:
         driver.add_cookie({'name': cookie['name'], 'value': cookie['value']})
-    logging.info('%d cookies have been loaded', len(cookies))
+    logger.info('%d cookies have been loaded', len(cookies))
 
 
 def upload_from_doi(driver, info, pause=True):
@@ -88,91 +93,91 @@ def upload_from_doi(driver, info, pause=True):
     try:
         load_cookie(driver)
     except IOError:
-        logging.info('no cookies found')
+        logger.info('no cookies found')
 
     driver.get(URL_SUBMIT)
 
     if 'login' in driver.current_url:
-        logging.warning("You are not logged in")
-        input('press enter when you are logged in')
+        logger.warning("You are not logged in")
+        input(Fore.RED + Back.GREEN + Style.DIM + 'press ENTER when you are logged in' + Style.RESET_ALL)
         save_cookies(driver)
         driver.get(URL_SUBMIT)
 
-    logging.debug('you are log in')
+    logger.debug('you are log in')
 
     page = Page(driver, pause=False)
     page.close_cookie_banner()
 
     driver.find_element_by_xpath("//a[contains(text(), 'Ricerca per identificativo')]").click()
     element_doi = driver.find_element_by_id("identifier_doi")
-    logging.debug('waiting for element to be visible')
+    logger.debug('waiting for element to be visible')
     WebDriverWait(driver, 10).until(EC.visibility_of(element_doi))
     element_doi.clear()
-    logging.debug('insert doi %s', info['doi'])
+    logger.debug('insert doi %s', info['doi'])
     element_doi.send_keys(info['doi'])
     driver.find_element_by_id("lookup_idenfifiers").click()
 
     # second page
-    logging.debug('waiting for page with results from doi %s', info['doi'])
+    logger.debug('waiting for page with results from doi %s', info['doi'])
     WebDriverWait(driver, 20).until(EC.visibility_of_element_located((By.ID, "checkresult0"))).click()
     type_document_selector = driver.find_element_by_id("select-collection0")
     sel = Select(type_document_selector)
     sel.select_by_visible_text("01 - Articolo su periodico")
-    logging.debug('ask to import selected records')
+    logger.debug('ask to import selected records')
     driver.find_element_by_xpath("//button[contains(text(), 'Importa i record selezionati')]").click()
 
     # third page (licence)
-    logging.debug('giving licence')
+    logger.debug('giving licence')
     driver.find_element_by_name("submit_grant").click()
 
     # check duplicate
-    logging.debug('checking for duplicate box')
+    logger.debug('checking for duplicate box')
     duplicate_box_titles = driver.find_elements_by_id('duplicateboxtitle')
 
     if duplicate_box_titles:
         box = duplicate_box_titles[0]
-        logging.debug('sleeping one second')
+        logger.debug('sleeping one second')
         time.sleep(1)  # FIXME: the problem is that the page is slow and this will be visible only if there will be a duplicate, which I don't know.
-        logging.debug('sleeping finished')
+        logger.debug('sleeping finished')
         if box.is_displayed():
-            logging.debug("the duplicate box is displayed")
-            logging.warning('Trying to insert duplicate')
+            logger.debug("the duplicate box is displayed")
+            logger.warning('Trying to insert duplicate')
             WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.ID, 'cancelpopup'))).click()
             WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.NAME, 'submit_remove'))).click()
             return ReturnValue.DUPLICATE
 
     # warning authors
-    logging.info("checking if many authors box")
+    logger.info("checking if many authors box")
     try:
         many_author_h4 = driver.find_element_by_xpath("//h4[@class='modal-title' and contains(text(), 'Attenzione')]")
-        logging.info('box many author found')
+        logger.info('box many author found')
         many_authors_close_button = many_author_h4.find_element_by_xpath("//../..//button[contains(text(), 'Chiudi')]")
-        logging.debug('closing many authors button found')
+        logger.debug('closing many authors button found')
         many_authors_close_button.click()
-        logging.debug('closed many author box')
+        logger.debug('closed many author box')
     except NoSuchElementException:
         pass
 
     page = PageDescrivere2(driver, pause=pause)
     page.wait_form_ready()
-    logging.debug('filling page Descrivere 2')
+    logger.debug('filling page Descrivere 2')
     if not page.get_title():
-        logging.debug('set title %s', info['title'])
+        logger.debug('set title %s', info['title'])
         page.set_title(info['title'])
     else:
-        logging.debug('title already present')
+        logger.debug('title already present')
 
     if not page.get_abstract():
-        logging.debug('set abstract "%s"', info['abstract'][0]['summary'])
+        logger.debug('set abstract "%s"', info['abstract'][0]['summary'])
         page.set_abstract(info['abstract'][0]['summary'])
     else:
-        logging.debug('abstract already present')
+        logger.debug('abstract already present')
     if not page.get_keywords():
         keywords = [term["term"] for term in info["thesaurus_terms"] if "term" in term]
-        logging.debug('set keywords %s', keywords)
+        logger.debug('set keywords %s', keywords)
         page.set_keywords(keywords)
     else:
-        logging.debug('keywords already present')
+        logger.debug('keywords already present')
 
     driver.find_element_by_id("widgetContributorEdit_dc_authority_people").click()
     authors_field = driver.find_element_by_id("widgetContributorSplitTextarea_dc_authority_people")
@@ -205,23 +210,23 @@ def upload_from_doi(driver, info, pause=True):
         date = datetime.datetime.fromisoformat(info['imprint']['date'])
         if page3.get_year():
             if int(page3.get_year()) != date.year:
-                logging.warning('year is different %s != %s', page3.get_year(), date.year)
+                logger.warning('year is different %s != %s', page3.get_year(), date.year)
         else:
-            logging.debug('setting year %s', date.year)
+            logger.debug('setting year %s', date.year)
             page3.set_year(date.year)
 
         if page3.get_month():
             if (int(page3.get_month)) != date.month:
-                logging.warning('month is different %s != %s', page3.get_month(), date.month)
+                logger.warning('month is different %s != %s', page3.get_month(), date.month)
         else:
-            logging.debug('setting month %s', date.month)
+            logger.debug('setting month %s', date.month)
             page3.set_month(date.month)
 
         if page3.get_day():
             if (int(page3.get_day()) != date.day):
-                logging.warning('day is different %s != %s', page3.get_day(), date.day)
+                logger.warning('day is different %s != %s', page3.get_day(), date.day)
         else:
-            logging.debug('setting day %s', date.day)
+            logger.debug('setting day %s', date.day)
             page3.set_day(date.day)
 
     page3.set_pub()
@@ -236,17 +241,17 @@ def upload_from_doi(driver, info, pause=True):
 
     if page5.get_scopus():
         if page5.get_scopus() != info['scopus']:
-            logging.warning("scopus reference are different %s != %s", info['scopus'], page5.get_scopus())
+            logger.warning("scopus reference are different %s != %s", info['scopus'], page5.get_scopus())
     else:
-        logging.info('scopus information not found')
+        logger.info('scopus information not found')
         page5.set_scopus(info['scopus'])
 
     if page5.get_wos():
         if page5.get_wos() != info['wos']:
-            logging.warning("wos reference are different %s != %s", info['wos'], page5.get_wos())
+            logger.warning("wos reference are different %s != %s", info['wos'], page5.get_wos())
     else:
-        logging.debug("wos information not found")
-        logging.debug("setting wos to %s", info['wos'])
+        logger.debug("wos information not found")
+        logger.debug("setting wos to %s", info['wos'])
         page5.set_wos(info['wos'])
 
     page5.set_open()
@@ -257,15 +262,15 @@ def upload_from_doi(driver, info, pause=True):
     page6 = PageCarica6(driver, pause=pause)
 
     if info.get('pdf_url', None):
-        logging.debug('downloading pdf from %s', info['pdf_url'])
+        logger.debug('downloading pdf from %s', info['pdf_url'])
         header = requests.head(info['pdf_url'], allow_redirects=True)
         if header.status_code >= 400:
-            logging.error('cannot download pdf with url %s', info['pdf_url'])
+            logger.error('cannot download pdf with url %s', info['pdf_url'])
         else:
             content_length = header.headers.get('content-length', None)
             if content_length is not None:
                 print(content_length)
-                logging.debug('downloading %s KB pdf', float(content_length) / 1024.)
+                logger.debug('downloading %s KB pdf', float(content_length) / 1024.)
             r = requests.get(info['pdf_url'], stream=True, allow_redirects=True)
             with tempfile.NamedTemporaryFile('wb', suffix='.pdf') as ftemp:
                 dl = 0
@@ -290,10 +295,6 @@ def upload_from_doi(driver, info, pause=True):
     page6 = Page(driver, pause)
     page6.next_page()
 
-    import pdb; pdb.set_trace()
-    # page7
-    driver.find_element_by_name("submit_next").click()
-
     return ReturnValue.SUCCESS
 
 
@@ -313,7 +314,7 @@ class Page:
 
     def next_page(self):
         if self.pause:
-            input('press ENTER to go to next page')
+            input(Fore.RED + Back.GREEN + Style.DIM + 'press ENTER to go to next page' + Style.RESET_ALL)
         self.driver.find_element_by_name(self.next_name).click()
 
     def close_cookie_banner(self):
@@ -323,7 +324,7 @@ class Page:
         el = el[0]
 
         if el.is_enabled():
-            logging.debug('closing cookies banner')
+            logger.debug('closing cookies banner')
             el.click()
 
 
@@ -335,7 +336,7 @@ class PageDescrivere2(Page):
         element_title.send_keys(title)
 
     def wait_form_ready(self):
-        logging.debug('waiting title to be clickable')
+        logger.debug('waiting title to be clickable')
         WebDriverWait(self.driver, 20).until(EC.element_to_be_clickable((By.ID, "dc_title_id")))
 
     def get_title(self):

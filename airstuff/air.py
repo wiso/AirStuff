@@ -1,6 +1,5 @@
 import requests
 import bibtexparser
-# from bs4 import BeautifulSoup
 from lxml import etree
 from multiprocessing.pool import ThreadPool
 from workers import OffsetsProducer, CallBackConsumer
@@ -50,7 +49,6 @@ def get_document_ids_from_author(author_id):
 
 def get_document_ids_from_author_offset(author_id, rg, offset):
     BASEURL = "https://air.unimi.it/browse?type=author&order=DESC&rpp=%s&authority=%s&offset=%d"
-               #https://air.unimi.it/browse?type=author&sort_by=2&order=DESC&rpp=10&etal=0&submit_browse=Aggiorna
 
     url = BASEURL % (rg, author_id, offset)
     logging.debug("getting %s", url)
@@ -61,18 +59,6 @@ def get_document_ids_from_author_offset(author_id, rg, offset):
     result = root.xpath('//form[@class="form-inline"]/*[@name="item_id"]')
     result = [r.attrib['value'] for r in result]
 
-    #logging.debug('souping')
-    #soup = BeautifulSoup(html, 'lxml')
-    #logging.debug('souping created')
-    #form = soup.find("form", {'id': 'exportform'})
-    #logging.debug('form done')
-    #if not form:
-    #    logging.info('form not found')
-    #    return []
-
-    #entries = form.find_all("input", {'name': 'item_id'})
-    #logging.debug('found all')
-    #result = [entry['value'] for entry in entries]
     logging.debug('results %s', result)
     return result
 

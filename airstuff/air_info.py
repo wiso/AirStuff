@@ -1,13 +1,14 @@
 import gi
 gi.require_version('Gtk', '3.0')
-import logging
-logging.basicConfig(level=logging.DEBUG)
+import colorlog
 from gi.repository import Gtk, Gdk
 from wos import get_wos_from_doi
 from inspire import query_inspire, fix_info
 from scopus import get_eid_from_doi
 import driver_air
 import journals
+
+logger = colorlog.getLogger('airstuff.info')
 
 
 class WindowDoi(Gtk.Window):
@@ -69,7 +70,7 @@ class WindowDoi(Gtk.Window):
         main_box.pack_start(pdf_url, True, True, 0)
 
         frame_selenium = Gtk.Frame(label='automatic insertion')
-        main_box.pack_start(frame_selenium, True, True, 0)
+        main_box.pack_start(frame_selenium, True, True, 8)
         box_selenium = Gtk.Box()
         frame_selenium.add(box_selenium)
 
@@ -129,13 +130,13 @@ class WindowDoi(Gtk.Window):
 
         selected_institutes = set([self.entry_institute.get_text()])
         if not selected_institutes:
-            logging.warning('no institute specified')
+            logger.warning('no institute specified')
 
         selected_authors = [author['full_name'] for author in info['authors']
                             if selected_institutes.intersection(set(author.get('affiliation', [])))]
         self.info['local_authors'] = selected_authors
         if not selected_authors:
-            logging.warning('no author found for institute %s', selected_institutes)
+            logger.warning('no author found for institute %s', selected_institutes)
 
         self.selected_authors_textbuffer.set_text('\n'.join(selected_authors))
 
@@ -145,14 +146,15 @@ class WindowDoi(Gtk.Window):
             info['scopus'] = eid
 
         wos = get_wos_from_doi(doi)
-        info['wos'] = wos
-        self.entry_wos.set_text(wos)
+        if wos is not None:
+            info['wos'] = wos
+            self.entry_wos.set_text(wos)
 
         if 'thesaurus_terms' in info:
             keywords = [k['term'] for k in info['thesaurus_terms'] if 'term' in k]
             self.entry_keyworkds.set_text(';'.join(keywords))
 
-        logging.info('getting url from journal')
+        logger.info('getting url from journal')
         pdf_url = journals.get_pdf_url(doi)
         if pdf_url:
             info['pdf_url'] = pdf_url
@@ -175,7 +177,7 @@ class WindowDoi(Gtk.Window):
     def start_selenium(self, widget):
         r = driver_air.upload_from_doi(self.driver, self.info, pause=self.button_pause.get_active())
         if r == driver_air.ReturnValue.DUPLICATE:
-            logging.warning('do not create duplicate')
+            logger.warning('do not create duplicate')
             doi = self.info['doi']
             if type(doi) == list:
                 doi = doi[0]
