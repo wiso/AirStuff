@@ -16,7 +16,7 @@ class OffsetsProducer(threading.Thread):
             if not self.input_queue.full():
                 logging.debug("adding %d", i)
                 self.input_queue.put(i)
-                logging.debug('added %d' % i)
+                logging.debug('added %d', i)
                 i += self.step
         logging.debug('producer end')
         return

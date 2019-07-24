@@ -3,9 +3,9 @@ gi.require_version('Gtk', '3.0')
 import logging
 logging.basicConfig(level=logging.DEBUG)
 from gi.repository import Gtk, Gdk
+from wos import get_wos_from_doi
 from inspire import query_inspire, fix_info
 from scopus import get_eid_from_doi
-from wos import get_wos_from_doi
 import driver_air
 import journals
 
@@ -117,7 +117,7 @@ class WindowDoi(Gtk.Window):
     def search_doi(self, widget):
         doi = self.entry_doi.get_text()
         info = query_inspire("doi:%s" % doi)
-        if len(info) == 0:
+        if not info == 0:
             pass
         if len(info) > 1:
             pass

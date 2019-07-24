@@ -83,7 +83,7 @@ class MyWindow(Gtk.Window):
             if len(self.table_diff_store):
                 logging.debug('redoing table')
                 self.make_diff(None)
-            
+
     def create_interface(self):
         main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.add(main_box)
@@ -141,7 +141,6 @@ class MyWindow(Gtk.Window):
         self.button_upload_air = Gtk.Button(label='upload from file')
         self.button_upload_air.connect("clicked", self.upload_air)
         box_air.pack_start(self.button_upload_air, True, True, 0)
-
 
         # air table
         box_table_air = Gtk.Box()

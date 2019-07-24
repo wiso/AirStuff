@@ -1,7 +1,6 @@
 from selenium import webdriver
 from selenium.webdriver.support.ui import Select, WebDriverWait
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.remote.remote_connection import LOGGER as selenium_logger
 from selenium.common.exceptions import NoSuchElementException
@@ -34,7 +33,7 @@ def get_driver(debug=False, driver='chrome'):
     if driver == 'chrome':
         logging.info('creating chrome')
         chrome_options = webdriver.ChromeOptions()
-        #chrome_options.add_argument("--incognito")
+        # chrome_options.add_argument("--incognito")
         if not debug:
             chrome_options.add_argument("--headless")
             chrome_options.add_argument("--mute-audio")
@@ -78,10 +77,10 @@ def load_cookie(driver):
     cookies = pickle.load(open("cookies.pkl", "rb"))
     if not cookies:
         raise IOError("no cookie found. Have you login?")
-    
+
     for cookie in cookies:
         driver.add_cookie({'name': cookie['name'], 'value': cookie['value']})
-    logging.info('%d cookies have been loaded' % len(cookies))
+    logging.info('%d cookies have been loaded', len(cookies))
 
 
 def upload_from_doi(driver, info, pause=True):
@@ -100,6 +99,10 @@ def upload_from_doi(driver, info, pause=True):
         driver.get(URL_SUBMIT)
 
     logging.debug('you are log in')
+
+    page = Page(driver, pause=False)
+    page.close_cookie_banner()
+
     driver.find_element_by_xpath("//a[contains(text(), 'Ricerca per identificativo')]").click()
     element_doi = driver.find_element_by_id("identifier_doi")
     logging.debug('waiting for element to be visible')
@@ -125,14 +128,14 @@ def upload_from_doi(driver, info, pause=True):
     # check duplicate
     logging.debug('checking for duplicate box')
     duplicate_box_titles = driver.find_elements_by_id('duplicateboxtitle')
-    
+
     if duplicate_box_titles:
         box = duplicate_box_titles[0]
         logging.debug('sleeping one second')
         time.sleep(1)  # FIXME: the problem is that the page is slow and this will be visible only if there will be a duplicate, which I don't know.
-        is_displayed = box.is_displayed()
+        logging.debug('sleeping finished')
         if box.is_displayed():
-            logging.info("the duplicate box is displayed")
+            logging.debug("the duplicate box is displayed")
             logging.warning('Trying to insert duplicate')
             WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.ID, 'cancelpopup'))).click()
             WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.NAME, 'submit_remove'))).click()
@@ -140,14 +143,18 @@ def upload_from_doi(driver, info, pause=True):
 
     # warning authors
     logging.info("checking if many authors box")
-    many_authors = False
     try:
-        driver.find_element_by_xpath("//h4[@class='modal-title' and contains(text(), 'Attenzione')]//../..//button[contains(text(), 'Chiudi')]").click()
-        many_authors = True
+        many_author_h4 = driver.find_element_by_xpath("//h4[@class='modal-title' and contains(text(), 'Attenzione')]")
+        logging.info('box many author found')
+        many_authors_close_button = many_author_h4.find_element_by_xpath("//../..//button[contains(text(), 'Chiudi')]")
+        logging.debug('closing many authors button found')
+        many_authors_close_button.click()
+        logging.debug('closed many author box')
     except NoSuchElementException:
         pass
 
     page = PageDescrivere2(driver, pause=pause)
+    page.wait_form_ready()
     logging.debug('filling page Descrivere 2')
     if not page.get_title():
         logging.debug('set title %s', info['title'])
@@ -209,14 +216,14 @@ def upload_from_doi(driver, info, pause=True):
         else:
             logging.debug('setting month %s', date.month)
             page3.set_month(date.month)
-       
+
         if page3.get_day():
             if (int(page3.get_day()) != date.day):
                 logging.warning('day is different %s != %s', page3.get_day(), date.day)
         else:
             logging.debug('setting day %s', date.day)
             page3.set_day(date.day)
-        
+
     page3.set_pub()
     page3.set_rilevanza()
     page3.next_page()
@@ -248,22 +255,21 @@ def upload_from_doi(driver, info, pause=True):
 
     # page 6
     page6 = PageCarica6(driver, pause=pause)
-    
 
     if info.get('pdf_url', None):
         logging.debug('downloading pdf from %s', info['pdf_url'])
         header = requests.head(info['pdf_url'], allow_redirects=True)
         if header.status_code >= 400:
-            logging.error('cannot download pdf with url %s', url['pdf_url'])
+            logging.error('cannot download pdf with url %s', info['pdf_url'])
         else:
             content_length = header.headers.get('content-length', None)
             if content_length is not None:
                 print(content_length)
                 logging.debug('downloading %s KB pdf', float(content_length) / 1024.)
             r = requests.get(info['pdf_url'], stream=True, allow_redirects=True)
-            with tempfile.NamedTemporaryFile('wb') as ftemp:
+            with tempfile.NamedTemporaryFile('wb', suffix='.pdf') as ftemp:
                 dl = 0
-                for chunk in r.iter_content(chunk_size=1024 * 512): 
+                for chunk in r.iter_content(chunk_size=1024 * 512):
                     if chunk:
                         dl += len(chunk)
                         ftemp.write(chunk)
@@ -284,9 +290,10 @@ def upload_from_doi(driver, info, pause=True):
     page6 = Page(driver, pause)
     page6.next_page()
 
+    import pdb; pdb.set_trace()
     # page7
     driver.find_element_by_name("submit_next").click()
-    
+
     return ReturnValue.SUCCESS
 
 
@@ -309,15 +316,27 @@ class Page:
             input('press ENTER to go to next page')
         self.driver.find_element_by_name(self.next_name).click()
 
+    def close_cookie_banner(self):
+        el = self.driver.find_elements_by_xpath('//div[@id="jGrowl"]//div[@class="jGrowl-close"]')
+        if not el:
+            return
+        el = el[0]
+
+        if el.is_enabled():
+            logging.debug('closing cookies banner')
+            el.click()
+
 
 class PageDescrivere2(Page):
-    def __init__(self, driver, pause=True):
-        super().__init__(driver, pause)
 
     def set_title(self, title):
         element_title = self.driver.find_element_by_id("dc_title_id")
         element_title.clear()
         element_title.send_keys(title)
+
+    def wait_form_ready(self):
+        logging.debug('waiting title to be clickable')
+        WebDriverWait(self.driver, 20).until(EC.element_to_be_clickable((By.ID, "dc_title_id")))
 
     def get_title(self):
         element_title = self.driver.find_element_by_id("dc_title_id")
@@ -367,15 +386,12 @@ class PageDescrivere2(Page):
         self.select_hidden(element_type_publication, 'Pubblicazione scientifica')
 
 
-
 class PageDescrivere3(Page):
-    def __init__(self, driver, pause=True):
-        super().__init__(driver, pause)
 
     def get_year(self):
         el = self.driver.find_element_by_name("dc_date_issued_year")
         return el.get_attribute('value')
-    
+
     def set_year(self, year):
         el = self.driver.find_element_by_name("dc_date_issued_year")
         el.clear()
@@ -413,8 +429,6 @@ class PageDescrivere3(Page):
 
 
 class PageDescrivere5(Page):
-    def __init__(self, driver, pause=True):
-        super().__init__(driver, pause)
 
     def get_scopus(self):
         els = self.driver.find_elements_by_xpath('//label[text()="Codice identificativo in banca dati"]/..//Select/option[@selected="selected"]')
@@ -425,7 +439,7 @@ class PageDescrivere5(Page):
                 break
         if not scopus_select:
             return None
-        
+
         scopus_id = el.find_element_by_xpath('../../..//input[@class="form-control"]').get_attribute('value')
         if not scopus_id:
             return None
@@ -459,7 +473,7 @@ class PageDescrivere5(Page):
                 break
         if not isi_select:
             return None
-        
+
         isi_id = el.find_element_by_xpath('../../..//input[@class="form-control"]').get_attribute('value')
         if not isi_id:
             return None
@@ -482,7 +496,7 @@ class PageDescrivere5(Page):
             sel.select_by_value("isi")
             el_field = els[0].find_element_by_xpath('../../../../../..//input[@name="dc_identifier_value"]')
             el_field.clear()
-            el_field.send_keys(isi_id)            
+            el_field.send_keys(isi_id)
 
     def set_open(self):
         el = self.driver.find_element_by_xpath('//select[@name="dc_iris_checkpolicy"]')
@@ -498,9 +512,6 @@ class PageDescrivere5(Page):
 class PageCarica6(Page):
     next_name = "submit_upload"
 
-    def __init__(self, driver, pause=True):
-        super().__init__(driver, pause)
-
     def send_file(self, fn):
         el = self.driver.find_element_by_id("tfile")
         self.driver.execute_script('arguments[0].style = ""; arguments[0].style.display = "block"; arguments[0].style.visibility = "visible";', el)
@@ -510,61 +521,6 @@ class PageCarica6(Page):
         el = self.driver.find_element_by_id('sitodoc')
         sel = Select(el)
         sel.select_by_value('true' if value else 'false')
-
-
-def upload(driver, info):
-    driver.get('https://air.unimi.it')
-    load_cookie(driver)
-    driver.get(URL_SUBMIT)
-
-    if 'login' in driver.current_url:
-        logging.warning("You are not logged in")
-        input('press enter when you are logged in')
-        save_cookies()
-        driver.get(URL_SUBMIT)
-
-    type_document_selector = driver.find_element_by_id("select-collection-manual")
-    sel = Select(type_document_selector)
-    sel.select_by_visible_text("01 - Articolo su periodico")
-    driver.find_element_by_id("manual-submission-button").click()
-    driver.find_element_by_name("submit_grant").click()
-
-    page = PageDescrivere2()
-
-    # title
-    page.set_title(driver, info['title'])
-
-    # abstract
-    page.set_abstract(into['abstract'])
-
-    # keywords
-    page.set_keywords(info['keywords'])
-
-    # international authors
-    element_international = driver.find_element_by_xpath("//select[@name='dc_description_international']")
-    # firefox is choosy: it cannot select on hidden <select> (chrome works)
-    old_class = element_international.get_attribute('class')
-    driver.execute_script("arguments[0].setAttribute('class', '')", element_international)
-    sel = Select(element_international)
-    sel.select_by_visible_text('Sì')
-    driver.execute_script("arguments[0].setAttribute('class', '%s')" % old_class, element_international)
-
-    # language
-    element_language = driver.find_element_by_xpath("//select[@name='dc_language_iso']")
-    old_class = element_language.get_attribute('class')
-    driver.execute_script("arguments[0].setAttribute('class', '')", element_language)
-    sel = Select(element_language)
-    sel.select_by_visible_text('English')
-    driver.execute_script("arguments[0].setAttribute('class', '%s')" % old_class, element_language)
-
-    # authors
-    element_authors = driver.find_element_by_id("widgetContributorSplitTextarea_dc_authority_people")
-    element_authors.clear()
-    element_authors.send_keys(';'.join(info['authors']))
-    driver.find_element_by_id("widgetContributorParse_dc_authority_people").click()
-
-
-    import pdb; pdb.set_trace()
 
 
 if __name__ == '__main__':
