@@ -1,6 +1,7 @@
 import threading
 import logging
-logging.basicConfig(level=logging.DEBUG, format='%(name)s %(levelname)s %(threadName)s %(message)s')
+import colorlog
+logger = colorlog.getLogger('airstuff.driverair')
 
 
 class OffsetsProducer(threading.Thread):

@@ -2,11 +2,11 @@ import gi
 gi.require_version('Gtk', '3.0')
 import colorlog
 from gi.repository import Gtk, Gdk
-from wos import get_wos_from_doi
-from inspire import query_inspire, fix_info
-from scopus import get_eid_from_doi
-import driver_air
-import journals
+from airstuff.wos import get_wos_from_doi
+from airstuff.inspire import query_inspire, fix_info
+from airstuff.scopus import get_eid_from_doi
+from airstuff import driver_air
+from airstuff import journals
 
 logger = colorlog.getLogger('airstuff.info')
 

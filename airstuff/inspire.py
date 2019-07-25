@@ -7,7 +7,7 @@ import json
 from multiprocessing.pool import ThreadPool
 import logging
 from datetime import datetime
-from workers import OffsetsProducer, CallBackConsumer, DuplicateFilter
+from airstuff.workers import OffsetsProducer, CallBackConsumer, DuplicateFilter
 logging.getLogger("requests").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("bibtexparser").setLevel(logging.WARNING)

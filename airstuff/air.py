@@ -2,12 +2,12 @@ import requests
 import bibtexparser
 from lxml import etree
 from multiprocessing.pool import ThreadPool
-from workers import OffsetsProducer, CallBackConsumer
-import logging
-logging.basicConfig(level=logging.DEBUG)
-logging.getLogger("requests").setLevel(logging.WARNING)
-logging.getLogger("urllib3").setLevel(logging.WARNING)
-logging.getLogger("bibtexparser").setLevel(logging.WARNING)
+from airstuff.workers import OffsetsProducer, CallBackConsumer
+#logging.getLogger("requests").setLevel(logging.WARNING)
+#logging.getLogger("urllib3").setLevel(logging.WARNING)
+#logging.getLogger("bibtexparser").setLevel(logging.WARNING)
+import colorlog
+logger = colorlog.getLogger('airstuff.air')
 
 
 def get_document_metadata(document_id):
@@ -16,7 +16,7 @@ def get_document_metadata(document_id):
     try:
         return bibtexparser.loads(r.text).entries[0]
     except:
-        print("problem parsing %s" % r.text)
+        logger.error("problem parsing %s", r.text)
         return None
 
 
@@ -51,7 +51,7 @@ def get_document_ids_from_author_offset(author_id, rg, offset):
     BASEURL = "https://air.unimi.it/browse?type=author&order=DESC&rpp=%s&authority=%s&offset=%d"
 
     url = BASEURL % (rg, author_id, offset)
-    logging.debug("getting %s", url)
+    logger.debug("getting %s", url)
     r = requests.get(url)
     html = r.text
 
@@ -59,7 +59,7 @@ def get_document_ids_from_author_offset(author_id, rg, offset):
     result = root.xpath('//form[@class="form-inline"]/*[@name="item_id"]')
     result = [r.attrib['value'] for r in result]
 
-    logging.debug('results %s', result)
+    logger.debug('results %s', result)
     return result
 
 
@@ -84,10 +84,10 @@ class AirConsumer(threading.Thread):
                 for rr in r:
                     info = get_document_metadata(rr)
                     if 'doi' not in info:
-                        logging.info("skipping %s", info)
+                        logger.info("skipping %s", info)
                         continue
                     info['doi'] = info['doi'].upper()
-                    logging.debug('putting info for %s into queue' % info['doi'])
+                    logger.debug('putting info for %s into queue' % info['doi'])
                     info['title'] = info['title'].replace('\n', ' ').replace('\t', ' ')
                     info = {k: info[k] for k in ('doi', 'title', 'year')}
                     self.output_queue.put(info)
@@ -123,7 +123,7 @@ class AirQuery():
             worker.start()
 
         if self.callback is not None:
-            logging.debug('creating callback consumer')
+            logger.debug('creating callback consumer')
             self.callback_worker = CallBackConsumer(self.output_queue, self.callback, stop_event=self.stop_event_callback)
             self.callback_worker.setDaemon(True)
             self.callback_worker.start()
@@ -135,22 +135,22 @@ class AirQuery():
         self.status = 'stopping'
         self.stop_event.set()
 
-        logging.debug('stopping producer')
+        logger.debug('stopping producer')
         for worker in self.all_producers:
             worker.join()
 
-        logging.debug('stopping consumer')
+        logger.debug('stopping consumer')
         for worker in self.all_workers:
             worker.join()
 
         if self.callback_worker is not None:
             self.stop_event_callback.set()
-            logging.debug('stopping callback')
-            logging.debug('waiting callback worker to join')
+            logger.debug('stopping callback')
+            logger.debug('waiting callback worker to join')
             self.callback_worker.join()
 
         self.status = 'stopped'
-        logging.debug('all stopped')
+        logger.debug('all stopped')
 
         self.stop_event.clear()
 
@@ -181,7 +181,7 @@ if __name__ == '__main__':
         with lock:
             all_publications.append(item)
             if item['doi'] in doi_set:
-                logging.warning('duplicate: %s' % item['doi'])
+                logger.warning('duplicate: %s' % item['doi'])
             doi_set.add(item['doi'])
             print("%4d %40s %30s %s" % (ifound, item['doi'], str(item['title'][:30]), item['year']))
             if fout is not None:
@@ -195,14 +195,14 @@ if __name__ == '__main__':
     start_time = time.time()
     q = AirQuery('rp09852', callback=callback, workers=args.workers)
     q.run()
-    logging.info("running")
+    logger.info("running")
     while True:
         if (args.max_results is not None and ifound >= args.max_results) or \
            (args.max_seconds is not None and (time.time() - start_time) > args.max_seconds):
-            logging.info("stopping")
+            logger.info("stopping")
             q.stop()
-            logging.info("stopped")
-            logging.info("found %d publications" % len(all_publications))
+            logger.info("stopped")
+            logger.info("found %d publications" % len(all_publications))
             break
 
     print("found %d publications" % len(all_publications))
@@ -212,7 +212,7 @@ if __name__ == '__main__':
     for gg in g:
         info = get_document_metadata(gg)
         if 'doi' not in info:
-            logging.info("skipping %s", info)
+            logger.info("skipping %s", info)
             continue
         if gg:
             print(info['doi'])

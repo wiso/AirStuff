@@ -3,11 +3,12 @@ gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, GObject, GLib, Gio
 from threading import Lock
 import datetime
-import inspire
-from air import AirQuery
-from air_info import WindowDoi
 import logging
 import colorlog
+from airstuff import inspire
+from airstuff.air import AirQuery
+from airstuff.air_info import WindowDoi
+
 
 colors = colorlog.default_log_colors
 colors['DEBUG'] = 'blue'
@@ -21,6 +22,17 @@ logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
 
 lock = Lock()
+
+
+def str2date(date):
+    try:
+        return datetime.datetime.fromisoformat(date)
+    except ValueError:
+        try:
+            return datetime.datetime.strptime(date, '%Y-%m')
+        except ValueError:
+            return datetime.datetime.strptime(date, '%Y')
+    raise ValueError('cannot parse date %s' % date)
 
 
 class StatBox(Gtk.Box):
@@ -287,7 +299,12 @@ class MyWindow(Gtk.Window):
     def add_inspire(self, item):
         item = inspire.fix_info(item)
         self.table_inspire_store.append([','.join(item['doi']), str(item['title']), str(item['date'])])
-        self.stat_box_inspire.fill(item['date'].year)
+        try:
+            date = str2date(item['date'])
+            self.stat_box_inspire.fill(date.year)
+        except ValueError:
+            self.stat_box_inspire.fill('?')
+
 
     def upload_inspire(self, item):
         dlg = Gtk.FileChooserDialog(title="Please choose a file",
@@ -313,13 +330,6 @@ class MyWindow(Gtk.Window):
             for line in f:
                 row = line.split('\t')
                 date = row[2].strip()
-                try:
-                    date = datetime.datetime.fromisoformat(date)
-                except ValueError:
-                    try:
-                        date = datetime.datetime.strptime(date, '%Y-%m')
-                    except ValueError:
-                        date = datetime.datetime.strptime(date, '%Y')
                 item = {'doi': row[0].strip(), 'title': row[1].strip(), 'date': date}
 
                 self.add_inspire(item)
@@ -397,7 +407,7 @@ class MyWindow(Gtk.Window):
         for item in info_diff:
             if not item[0] in doi_blacklisted:
                 self.table_diff_store.append([item[0], str(item[1]), str(item[2])])
-                self.stat_box_diff.fill(datetime.datetime.fromisoformat(item[2]).year)
+                self.stat_box_diff.fill(str2date(item[2]).year)
 
     def go(self, widget):
         index_selected = self.table_diff_view.get_selection().get_selected_rows()
@@ -414,7 +424,7 @@ def app_main(args):
     win.show_all()
 
 
-if __name__ == '__main__':
+def main():
     import argparse
 
     parser = argparse.ArgumentParser(description='Air Stuff')
@@ -428,3 +438,7 @@ if __name__ == '__main__':
 
     app_main(args)
     Gtk.main()
+
+
+if __name__ == '__main__':
+    main()
