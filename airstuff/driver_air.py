@@ -287,7 +287,7 @@ def upload_from_doi(driver, info, pause=True):
 
                 page6.send_file(ftemp.name)
 
-    page6.sito_docente(False)
+    page6.sito_docente(True)
 
     page6.next_page()
 

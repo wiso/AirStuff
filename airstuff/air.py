@@ -84,11 +84,14 @@ class AirConsumer(threading.Thread):
                 for rr in r:
                     info = get_document_metadata(rr)
                     if 'doi' not in info:
-                        logger.info("skipping %s", info)
-                        continue
-                    info['doi'] = info['doi'].upper()
-                    logger.debug('putting info for %s into queue' % info['doi'])
+                        logger.warning('no doi for %s', info['title'])
+                        info['doi'] = None
+                    else:
+                        info['doi'] = info['doi'].upper()
+                    logger.debug('putting info for %s into queue', info['doi'])
                     info['title'] = info['title'].replace('\n', ' ').replace('\t', ' ')
+                    print('*' * 100)
+                    print(list(info.keys()))
                     info = {k: info[k] for k in ('doi', 'title', 'year')}
                     self.output_queue.put(info)
 

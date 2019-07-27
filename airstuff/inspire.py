@@ -19,7 +19,6 @@ URL_SEARCH = "http://inspirehep.net/search"
 
 ATLAS_QUERY = 'collaboration:"ATLAS" AND collection:published and NOT collection:conferencepaper and collection:citeable'
 
-
 def query_inspire(query, rg=100, jrec=1, ot=None):
     logging.debug('querying %s, offset=%d', query, jrec)
     # see http://inspirehep.net/help/hacking/search-engine-api
@@ -65,11 +64,14 @@ def fix_title(title):
 
 
 def fix_info(info):
-    if 'doi' in info:
+    if 'doi' in info and info['doi'] is not None:
         if type(info['doi']) is str:
             info['doi'] = [info['doi']]
+        
         info['doi'] = [doi.upper() for doi in info['doi']]
         info['doi'] = sorted(list(set(info['doi'])))
+    else:
+        info['doi'] = []
 
     if 'date' in info and type(info['date'] is datetime):
         pass
@@ -107,7 +109,7 @@ def get_all_collaboration(collaboration, infos=None):
             for rr in r:
                 dobreak = False
                 for rrr in rr:
-                    if int(rrr['number_of_authors']) < 30:
+                    if rrr['number_of_authors'] is not None and int(rrr['number_of_authors']) < 30:
                         continue
                     yield fix_info(rrr)
                 if not rr:
@@ -266,13 +268,6 @@ class InspireQuery():
 
 if __name__ == '__main__':
 
-    f = open('temp.txt', 'w')
-    for x in get_all_collaboration('ATLAS'):
-        to_write = '%s\t%s\t%s' % (','.join(x['doi']), x['title'], x['date'])
-        print(to_write)
-        f.write(to_write + '\n')
-    exit()
-
     import time
     import argparse
 
@@ -282,6 +277,14 @@ if __name__ == '__main__':
     parser.add_argument('--out', help='output filename')
     parser.add_argument('--workers', type=int, default=5)
     args = parser.parse_args()
+
+    f = open(args.out, 'w')
+    for x in get_all_collaboration('ATLAS'):
+        to_write = '%s\t%s\t%s' % (','.join(x['doi']), x['title'], x['date'])
+        print(to_write)
+        f.write(to_write + '\n')
+    exit()
+
 
     all_publications = []
     doi_set = set()
