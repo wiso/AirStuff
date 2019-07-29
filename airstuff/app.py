@@ -440,6 +440,10 @@ def main():
     threading.Thread(target=lambda: None).start()
     GObject.threads_init()
 
+    if not Gtk.init_check:
+        logger.fatal('Cannot initialize Gtk')
+        return
+
     app_main(args)
     Gtk.main()
 
