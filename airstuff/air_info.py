@@ -13,10 +13,11 @@ logger = colorlog.getLogger('airstuff.info')
 
 class WindowDoi(Gtk.Window):
 
-    def __init__(self, doi=None, institute=None):
+    def __init__(self, doi=None, institute=None, additional_authors=None):
         Gtk.Window.__init__(self, title="Air Stuff")
 
         self.info = None
+        self.additional_authors = additional_authors
 
         self.clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
         self.browser_name = 'chrome'
@@ -135,6 +136,13 @@ class WindowDoi(Gtk.Window):
         selected_authors = [author['full_name'] for author in info['authors']
                             if selected_institutes.intersection(set(author.get('affiliation', [])))]
         self.info['local_authors'] = selected_authors
+        if self.additional_authors is not None:
+            logger.debug('adding additional authors %s', self.additional_authors)
+            for aa in self.additional_authors:
+                if aa in self.info['local_authors']:
+                    logger.warning('additional author %s already present', aa)
+                else:
+                    self.info['local_authors'].append(aa)
         if not selected_authors:
             logger.warning('no author found for institute %s', selected_institutes)
 

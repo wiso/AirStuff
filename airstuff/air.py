@@ -83,6 +83,9 @@ class AirConsumer(threading.Thread):
                 r = get_document_ids_from_author_offset(self.author_id, self.step, offset)
                 for rr in r:
                     info = get_document_metadata(rr)
+                    if not info:
+                        logging.error('no info in offset %s, step %s', offset, self.step)
+                        continue
                     if 'doi' not in info:
                         logger.warning('no doi for %s', info['title'])
                         info['doi'] = None
@@ -90,8 +93,6 @@ class AirConsumer(threading.Thread):
                         info['doi'] = info['doi'].upper()
                     logger.debug('putting info for %s into queue', info['doi'])
                     info['title'] = info['title'].replace('\n', ' ').replace('\t', ' ')
-                    print('*' * 100)
-                    print(list(info.keys()))
                     info = {k: info[k] for k in ('doi', 'title', 'year')}
                     self.output_queue.put(info)
 
@@ -170,7 +171,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     all_publications = []
-    doi_set = set()
     lock = threading.Lock()
     ifound = 0
 
@@ -183,15 +183,12 @@ if __name__ == '__main__':
         global fout
         with lock:
             all_publications.append(item)
-            if item['doi'] in doi_set:
-                logger.warning('duplicate: %s' % item['doi'])
-            doi_set.add(item['doi'])
             print("%4d %40s %30s %s" % (ifound, item['doi'], str(item['title'][:30]), item['year']))
             if fout is not None:
                 fout.write("%s\t%s\t%s\n" % (item['doi'], item['title'], item['year']))
             ifound += 1
     all_publications = []
-    doi_set = set()
+
     lock = threading.Lock()
     ifound = 0
 
