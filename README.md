@@ -21,7 +21,7 @@ This can also help you to install dependencies.
 ## Run it
 Just run:
 
-    airstuff.py
+    airstuff
 
 Presently it is suggested to precompute the list of publications from air and inspire with:
 
@@ -35,7 +35,7 @@ The last do not terminate. Terminate it when it stops to find results.
 
 Then you can run with:
 
-    python airstuff/app.py --air-file air.txt  --inspire-file inspire.txt
+    python airstuff --air-file air.txt  --inspire-file inspire.txt
 
 For other options (as adding additional authors) try `-h` option.
 

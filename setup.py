@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="AirStuff",
-    version="0.1.0",
+    version="0.1.1",
     author="Ruggero Turra",
     author_email="ruggero.turra@cern.ch",
     description="Utilities to speedup AIR (Archivio Istituzionale della Ricerca) document upload, for HEP users",
