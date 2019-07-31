@@ -84,7 +84,7 @@ class AirConsumer(threading.Thread):
                 for rr in r:
                     info = get_document_metadata(rr)
                     if not info:
-                        logging.error('no info in offset %s, step %s', offset, self.step)
+                        logger.error('no info in offset %s, step %s', offset, self.step)
                         continue
                     if 'doi' not in info:
                         logger.warning('no doi for %s', info['title'])

@@ -184,11 +184,14 @@ class WindowDoi(Gtk.Window):
 
     def start_selenium(self, widget):
         r = driver_air.upload_from_doi(self.driver, self.info, pause=self.button_pause.get_active())
+        doi = self.info['doi']
+        if type(doi) == list:
+            doi = doi[0]
         if r == driver_air.ReturnValue.DUPLICATE:
-            logger.warning('do not create duplicate')
-            doi = self.info['doi']
-            if type(doi) == list:
-                doi = doi[0]
+            logger.warning('do not create duplicate %s', doi)
+            self.ignore_in_future(doi)
+        elif r == driver_air.ReturnValue.SUCCESS:
+            logger.info('entry %s correctly submitted', doi)
             self.ignore_in_future(doi)
         d = self.driver
         d.close()

@@ -8,6 +8,8 @@ import colorlog
 from airstuff import inspire
 from airstuff.air import AirQuery
 from airstuff.air_info import WindowDoi
+import jellyfish
+import re
 
 
 colors = colorlog.default_log_colors
@@ -22,6 +24,36 @@ logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
 
 lock = Lock()
+
+
+def delatex(s):
+    replaces = ((' ', ' '), (' ', ' '), ('$', ''), ('{', ''), ('}', ''), (r'\ell', 'l'), ('^', ''),
+                (r'\text', ''), (r'\sqrt', 'sqrt'), (r'\to', '->'), ('-&gt;', '->'), (' = ', '='),
+                ('√', 'sqrt'), (r'\mathrm', ''), ('pp', 'proton-proton'), ('pb+pb', 'lead-lead'))
+                
+    for l, r in replaces:
+        s = s.replace(l, r)
+    s = s.replace('-', ' ')
+    s = s.replace('with the atlas detector', '')
+    s = s.replace('in proton proton collisions', '')
+    return s
+
+re13 = re.compile(r'13[   ]*tev')
+re8 = re.compile(r'8[   ]*tev')
+re7 = re.compile(r'7[   ]*tev')
+re5p02 = re.compile(r'5\.02[   ]*tev')
+re2p76 = re.compile(r'2\.76[   ]*tev')
+re900 = re.compile(r'900[   ]*gev')
+
+
+def get_energy_title(title):
+    if re13.search(title): return 13
+    if re8.search(title) : return 8
+    if re7.search(title): return 7
+    if re5p02.search(title): return 5.02
+    if re2p76.search(title): return 2.76
+    if re900.search(title): return 900
+    return None
 
 
 def str2date(date):
@@ -390,18 +422,47 @@ class MyWindow(Gtk.Window):
             doi_blacklisted = self.get_blacklist()
 
         dois_air = set(v[0] for v in air_values)
-        dois_inspire_not_air = set()
         info_diff = []
         for inspire_info in inspire_values:
-            doi_inspire = inspire_info[0].split(',')
             found = False
+            doi_inspire = inspire_info[0].split(',')
+            
             for d in doi_inspire:
                 if d in dois_air:
                     found = True
-            if not found:
-                dois_inspire_not_air = doi_inspire[0]
+                    break
+                if d in doi_blacklisted:
+                    found = True
+                    break
 
+            if not found:
+                inspire_title_normalized = delatex(inspire_info[1].strip().lower())
+                energy_inspire = get_energy_title(inspire_title_normalized)
+                year_inspire = str2date(inspire_info[2]).year
+                for air in air_values:
+                    air_title = air[1]
+                    air_title_normalized = delatex(air_title.strip().lower())
+                    energy_air = get_energy_title(air_title_normalized)
+                    year_air = int(air[2])
+                    if energy_inspire is not None and energy_air is not None and energy_inspire != energy_air:
+                        continue
+                    if abs(year_inspire - year_air) >= 2:
+                        continue
+                    distance = jellyfish.levenshtein_distance(air_title_normalized, inspire_title_normalized)
+                    distance /= float(len(air_title_normalized))
+
+                    if distance < 0.2 and (not air[0] or not doi_inspire or air[0]=='None'):
+                        logger.warning('removing title matching between (inspire %s)\n  "%s" with doi %s with (air %s)\n  "%s" with doi %s',
+                                       inspire_info[2], inspire_info[1], doi_inspire, air[2], air_title, air[0])
+                        found = True
+                        break
+                    elif distance < 0.2:
+                        logger.info('suspicious title matching %f between (inspire %s)\n  "%s" with doi %s with (air %s)\n  "%s" with doi %s',
+                                    distance, inspire_info[2], inspire_info[1], doi_inspire, air[2], air_title_normalized, air[0])
+
+            if not found:
                 info_diff.append([doi_inspire[0], inspire_info[1], inspire_info[2]])
+
 
         self.stat_box_diff.reset()
         self.table_diff_store.clear()

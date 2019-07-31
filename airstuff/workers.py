@@ -15,11 +15,11 @@ class OffsetsProducer(threading.Thread):
         i = 0
         while self.stop_event is None or not self.stop_event.is_set():
             if not self.input_queue.full():
-                logging.debug("adding %d", i)
+                logger.debug("adding %d", i)
                 self.input_queue.put(i)
-                logging.debug('added %d', i)
+                logger.debug('added %d', i)
                 i += self.step
-        logging.debug('producer end')
+        logger.debug('producer end')
         return
 
 
@@ -38,7 +38,7 @@ class DuplicateFilter(threading.Thread):
             if not self.input_queue.empty():
                 item = self.input_queue.get()
                 if item in self.added:
-                    logging.warning('duplicate: %s', item)
+                    logger.warning('duplicate: %s', item)
                     self.input_queue.task_done()
                     continue
                 with self.lock_duplicated:
@@ -61,7 +61,7 @@ class CallBackConsumer(threading.Thread):
                 self.callback(item)
                 self.input_queue.task_done()
             if self.stop_event is not None and self.stop_event.is_set() and self.input_queue.empty():
-                logging.debug('breaking main loop in callback worker')
+                logger.debug('breaking main loop in callback worker')
                 break
 
-        logging.debug("callback worker end")
+        logger.debug("callback worker end")
