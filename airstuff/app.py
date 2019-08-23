@@ -10,6 +10,7 @@ from airstuff.air import AirQuery
 from airstuff.air_info import WindowDoi
 import jellyfish
 import re
+from common import str2date
 
 
 colors = colorlog.default_log_colors
@@ -54,17 +55,6 @@ def get_energy_title(title):
     if re2p76.search(title): return 2.76
     if re900.search(title): return 900
     return None
-
-
-def str2date(date):
-    try:
-        return datetime.datetime.fromisoformat(date)
-    except ValueError:
-        try:
-            return datetime.datetime.strptime(date, '%Y-%m')
-        except ValueError:
-            return datetime.datetime.strptime(date, '%Y')
-    raise ValueError('cannot parse date %s' % date)
 
 
 class StatBox(Gtk.Box):

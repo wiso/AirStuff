@@ -14,6 +14,7 @@ from colorama import init as init_colorama
 from colorama import Fore, Back, Style
 import colorlog
 import logging
+from common import str2date
 logging.getLogger("requests").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("bibtexparser").setLevel(logging.WARNING)
@@ -207,7 +208,7 @@ def upload_from_doi(driver, info, pause=True):
     page3 = PageDescrivere3(driver, pause=pause)
 
     if 'imprint' in info and info['imprint']['date']:
-        date = datetime.datetime.fromisoformat(info['imprint']['date'])
+        date = str2date(info['imprint']['date'])
         if page3.get_year():
             if int(page3.get_year()) != date.year:
                 logger.warning('year is different %s != %s', page3.get_year(), date.year)
@@ -287,13 +288,13 @@ def upload_from_doi(driver, info, pause=True):
 
                 page6.send_file(ftemp.name)
 
-    page6.sito_docente(True)
+                page6.sito_docente(True)
 
-    page6.next_page()
+                page6.next_page()
 
-    # page 6/bis
-    page6 = Page(driver, pause)
-    page6.next_page()
+                # page 6/bis
+                page6 = Page(driver, pause)
+                page6.next_page()
 
     return ReturnValue.SUCCESS
 
