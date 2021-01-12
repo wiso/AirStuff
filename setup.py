@@ -13,7 +13,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/wiso/airstuff",
     packages=setuptools.find_packages(),
-    install_requires=['lxml', 'selenium', 'bibtexparser', 'requests', 'xmltodict', 'PyGObject', 'colorlog', 'colorama'],
+    install_requires=['lxml', 'selenium', 'bibtexparser', 'requests', 'xmltodict', 'PyGObject', 'colorlog', 'colorama', 'jellyfish'],
     entry_points={'console_scripts': ['airstuff=airstuff.app:main'], },
     python_requires='>=3.4',
     classifiers=[

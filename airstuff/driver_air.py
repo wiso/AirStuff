@@ -14,7 +14,7 @@ from colorama import init as init_colorama
 from colorama import Fore, Back, Style
 import colorlog
 import logging
-from common import str2date
+from airstuff.common import str2date
 logging.getLogger("requests").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("bibtexparser").setLevel(logging.WARNING)

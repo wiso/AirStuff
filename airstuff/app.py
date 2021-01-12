@@ -10,7 +10,7 @@ from airstuff.air import AirQuery
 from airstuff.air_info import WindowDoi
 import jellyfish
 import re
-from common import str2date
+from airstuff.common import str2date
 
 
 colors = colorlog.default_log_colors
