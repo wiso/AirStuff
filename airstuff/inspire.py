@@ -22,13 +22,16 @@ ATLAS_QUERY = 'collaboration:"ATLAS" AND collection:published and NOT collection
 def query_inspire(query, size=100, page=1, fields=None):
     logger.debug('querying %s, size=%d, page=%d', query, size, page)
     # see http://inspirehep.net/help/hacking/search-engine-api
-    r = requests.get(URL_SEARCH,
-                     params=dict(
-                         size=size,                # range
-                         page=page,                # offset
-                         fields=','.join(fields),  # ouput tags
-                         sort='mostrecent',        # sorting
-                         q=query))
+    params=dict(
+        size=size,                # range
+        page=page,                # offset
+        sort='mostrecent',        # sorting
+        q=query)
+
+    if fields is not None:
+        params['fields'] = ','.join(fields),  # ouput tags
+    r = requests.get(URL_SEARCH, params)
+
     logger.debug('getting %s', r.url)
     if r.elapsed.total_seconds() > 20:
         logger.warning('slow response to %s: %d seconds', r.url, r.elapsed.total_seconds())
@@ -62,19 +65,18 @@ def fix_title(title):
 
 
 def fix_info(info):
-    results = {}
     metadata = info['metadata']
 
     if 'dois' not in metadata:
-        results['doi'] = '?'
+        metadata['doi'] = '?'
     else:
-        results['doi'] = [x['value'].upper() for x in metadata['dois']]
-        results['doi'] = sorted(list(set(results['doi'])))
+        metadata['doi'] = [x['value'].upper() for x in metadata['dois']]
+        metadata['doi'] = sorted(list(set(metadata['doi'])))
 
     if 'titles' not in metadata:
-        results['title'] = '?'
+        metadata['title'] = '?'
     else:
-        results['title'] = fix_title(metadata['titles'])
+        metadata['title'] = fix_title(metadata['titles'])
 
     date = '?'
     if 'imprint' in metadata and metadata['imprint'] is not None and 'date' in metadata['imprint']:
@@ -83,9 +85,13 @@ def fix_info(info):
         date = metadata['prepublication']['date']
     else:
         date = info['created']
-    results['date'] = date
+    metadata['date'] = date
 
-    return results
+    if 'abstracts' in metadata:
+        if isinstance(metadata['abstracts'], list):
+            metadata['abstract'] = metadata['abstracts'][0]['value']
+
+    return metadata
 
 
 def get_all_collaboration(collaboration, infos=None):

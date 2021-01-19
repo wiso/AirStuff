@@ -89,7 +89,7 @@ def load_cookie(driver):
     logger.info('%d cookies have been loaded', len(cookies))
 
 
-def upload_from_doi(driver, info, pause=True):
+def upload_from_doi(driver, info, pause=True, no_links=False):
     driver.get('https://air.unimi.it')
     try:
         load_cookie(driver)
@@ -116,7 +116,7 @@ def upload_from_doi(driver, info, pause=True):
     element_doi.clear()
     logger.debug('insert doi %s', info['doi'])
     element_doi.send_keys(info['doi'])
-    driver.find_element_by_id("lookup_idenfifiers").click()
+    driver.find_element_by_id("lookup_identifiers").click()
 
     # second page
     logger.debug('waiting for page with results from doi %s', info['doi'])
@@ -169,12 +169,12 @@ def upload_from_doi(driver, info, pause=True):
         logger.debug('title already present')
 
     if not page.get_abstract():
-        logger.debug('set abstract "%s"', info['abstract'][0]['summary'])
-        page.set_abstract(info['abstract'][0]['summary'])
+        logger.debug('set abstract "%s"', info['abstract'])
+        page.set_abstract(info['abstract'])
     else:
         logger.debug('abstract already present')
     if not page.get_keywords():
-        keywords = [term["term"] for term in info["thesaurus_terms"] if "term" in term]
+        keywords = list(set([_['value'] for _ in info['keywords']]))
         logger.debug('set keywords %s', keywords)
         page.set_keywords(keywords)
     else:
@@ -240,20 +240,29 @@ def upload_from_doi(driver, info, pause=True):
     # page 5
     page5 = PageDescrivere5(driver, pause=pause)
 
-    if page5.get_scopus():
-        if page5.get_scopus() != info['scopus']:
-            logger.warning("scopus reference are different %s != %s", info['scopus'], page5.get_scopus())
-    else:
-        logger.info('scopus information not found')
-        page5.set_scopus(info['scopus'])
+    if not no_links:
+        if page5.get_scopus() and 'scopus' in info:
+            if page5.get_scopus() != info['scopus']:
+                logger.warning("scopus reference are different %s != %s", info['scopus'], page5.get_scopus())
+        else:
+            logger.info('scopus information not found')
+            if 'scopus' in info:
+                page5.set_scopus(info['scopus'])
+            else:
+                logger.warning("Cannot find information about scopus")
 
-    if page5.get_wos():
-        if page5.get_wos() != info['wos']:
-            logger.warning("wos reference are different %s != %s", info['wos'], page5.get_wos())
+        if page5.get_wos() and 'wos' in info:
+            if page5.get_wos() != info['wos']:
+                logger.warning("wos reference are different %s != %s", info['wos'], page5.get_wos())
+        else:
+            logger.debug("wos information not found")
+            logger.debug("setting wos to %s", info['wos'])
+            if 'wos' in info:
+                page5.set_wos(info['wos'])
+            else:
+                logger.warning("Cannot find information about wos")
     else:
-        logger.debug("wos information not found")
-        logger.debug("setting wos to %s", info['wos'])
-        page5.set_wos(info['wos'])
+        logger.warning("skipping scopus and wos")
 
     page5.set_open()
     page5.set_url('')  # remove url since the automatic one link to the journal and not to the article
@@ -448,26 +457,35 @@ class PageDescrivere5(Page):
         return scopus_id
 
     def set_scopus(self, scopus_id):
-        els = self.driver.find_elements_by_xpath('//label[text()="Codice identificativo in banca dati"]/..//Select/option[@selected="selected"]')
+        
+        el_label = self.driver.find_element_by_xpath('//label[text()="Codice identificativo in banca dati"]')
+        els_select = el_label.find_elements_by_xpath('..//Select[@name="dc_identifier_qualifier"]')
+
         scopus_selected = None
-        for el in els:
-            if el.text == 'Scopus':
-                scopus_selected = el
-                break
-        if scopus_selected:
-            scopus_element = scopus_selected.find_element_by_xpath('../../..//input[@class="form-control"]')
-            scopus_element.clear()
-            scopus_element.send_keys(scopus_id)
+        new_selected = None
+        for el_select in els_select:
+            sel = Select(el_select)
+            for opt in sel.all_selected_options:
+                if opt.get_attribute('value') == "scopus":
+                    scopus_selected = el_select
+                if opt.get_attribute('value') == "_":
+                    new_selected = el_select
+        if new_selected is None:
+            logger.error("cannot find an empty select")
+        if scopus_selected is not None:
+            el_input = scopus_selected.find_element_by_xpath('../../..//input[@name="dc_identifier_value"]')
+            el_input.clear()
+            el_input.send_keys(scopus_id)
         else:
-            el2 = els[0].find_element_by_xpath('../../../../../..//select[@name="dc_identifier_qualifier"]')
-            sel = Select(el2)
+            sel = Select(new_selected)
             sel.select_by_value("scopus")
-            el_field = el.find_element_by_xpath('../../../../../..//input[@name="dc_identifier_value"]')
+            el_field = new_selected.find_element_by_xpath('../../../../../..//input[@name="dc_identifier_value"]')
             el_field.clear()
             el_field.send_keys(scopus_id)
 
     def get_wos(self):
-        els = self.driver.find_elements_by_xpath('//label[text()="Codice identificativo in banca dati"]/..//Select/option[@selected="selected"]')
+        el_label = self.driver.find_element_by_xpath('//label[text()="Codice identificativo in banca dati"]')
+        els = el_label.find_elements_by_xpath('/..//Select/option[@selected="selected"]')
         isi_select = None
         for el in els:
             if el.text == 'ISI':
@@ -524,13 +542,3 @@ class PageCarica6(Page):
         sel = Select(el)
         sel.select_by_value('true' if value else 'false')
 
-
-if __name__ == '__main__':
-    driver = get_driver(debug=True, driver='chrome')
-
-    #login(driver)
-    #upload(driver, {'title': 'my title',
-    #                'keywords': ['key1', 'key2'],
-    #                'abstract': 'my abstract',
-    #                'authors': ['Attilio Andreazza', 'Leonardo Carminati']})
-    upload_from_doi(driver, {'doi': '10.1140/epjc/s10052-018-6374-z'})

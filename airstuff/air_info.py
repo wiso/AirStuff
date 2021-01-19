@@ -13,11 +13,12 @@ logger = colorlog.getLogger('airstuff.info')
 
 class WindowDoi(Gtk.Window):
 
-    def __init__(self, doi=None, institute=None, additional_authors=None):
+    def __init__(self, doi=None, institute=None, additional_authors=None, no_links=False):
         Gtk.Window.__init__(self, title="Air Stuff")
 
         self.info = None
         self.additional_authors = additional_authors
+        self.no_links = no_links
 
         self.clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
         self.browser_name = 'chrome'
@@ -119,6 +120,7 @@ class WindowDoi(Gtk.Window):
     def search_doi(self, widget):
         doi = self.entry_doi.get_text()
         info = query_inspire("doi:%s" % doi)
+        info = info['hits']['hits']
         if not info == 0:
             pass
         if len(info) > 1:
@@ -134,7 +136,10 @@ class WindowDoi(Gtk.Window):
             logger.warning('no institute specified')
 
         selected_authors = [author['full_name'] for author in info['authors']
-                            if selected_institutes.intersection(set(author.get('affiliation', [])))]
+                            if selected_institutes.intersection(set(aff['value'] for aff in author.get('affiliations', [])))]
+        if not selected_authors:
+            logger.warning('no author found for institute %s', selected_institutes)
+
         self.info['local_authors'] = selected_authors
         if self.additional_authors is not None:
             logger.debug('adding additional authors %s', self.additional_authors)
@@ -143,8 +148,6 @@ class WindowDoi(Gtk.Window):
                     logger.warning('additional author %s already present', aa)
                 else:
                     self.info['local_authors'].append(aa)
-        if not selected_authors:
-            logger.warning('no author found for institute %s', selected_institutes)
 
         self.selected_authors_textbuffer.set_text('\n'.join(selected_authors))
 
@@ -158,8 +161,8 @@ class WindowDoi(Gtk.Window):
             info['wos'] = wos
             self.entry_wos.set_text(wos)
 
-        if 'thesaurus_terms' in info:
-            keywords = [k['term'] for k in info['thesaurus_terms'] if 'term' in k]
+        if 'keywords' in info:
+            keywords = list(set([_['value'] for _ in info['keywords']]))
             self.entry_keyworkds.set_text(';'.join(keywords))
 
         logger.info('getting url from journal')
@@ -183,7 +186,7 @@ class WindowDoi(Gtk.Window):
         self.browser_name = value
 
     def start_selenium(self, widget):
-        r = driver_air.upload_from_doi(self.driver, self.info, pause=self.button_pause.get_active())
+        r = driver_air.upload_from_doi(self.driver, self.info, pause=self.button_pause.get_active(), no_links=self.no_links)
         doi = self.info['doi']
         if type(doi) == list:
             doi = doi[0]
@@ -202,8 +205,8 @@ class WindowDoi(Gtk.Window):
             f.write('%s\n' % doi)
 
 
-def app_main(doi=None, institute=None):
-    win = WindowDoi(doi, institute)
+def app_main(doi=None, institute=None, no_links=False):
+    win = WindowDoi(doi, institute, no_links)
     win.connect("destroy", Gtk.main_quit)
     win.show_all()
 
@@ -211,10 +214,12 @@ def app_main(doi=None, institute=None):
 if __name__ == '__main__':
     import argparse
 
-    parser = argparse.ArgumentParser(description='Insert information on air')
+    example = 'example: air_info.py 10.1140/epjc/s10052-018-6374-z --institute "Milan U."'
+    parser = argparse.ArgumentParser(description='Insert information on air', epilog=example)
     parser.add_argument("doi", nargs='?', default=None)
     parser.add_argument('--institute')
+    parser.add_argument('--no-links', action='store_true')
     args = parser.parse_args()
 
-    app_main(args.doi, args.institute)
+    app_main(args.doi, args.institute, args.no_links)
     Gtk.main()

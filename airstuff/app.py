@@ -107,12 +107,13 @@ class StatBox(Gtk.Box):
 
 class MyWindow(Gtk.Window):
 
-    def __init__(self, air_file=None, inspire_file=None, additional_authors=None):
+    def __init__(self, air_file=None, inspire_file=None, additional_authors=None, no_links=False):
         Gtk.Window.__init__(self, title="Air Stuff")
 
         self.set_default_size(800, 350)
         self.create_interface()
         self.additional_authors = additional_authors
+        self.no_links = no_links
 
         if air_file is not None:
             self.upload_air_from_file(air_file)
@@ -320,8 +321,8 @@ class MyWindow(Gtk.Window):
         self.inspire_query = None
 
     def add_inspire(self, item):
-        item = inspire.fix_info(item)
-        self.table_inspire_store.append([','.join(item['doi']), str(item['title']), str(item['date'])])
+        #item = inspire.fix_info(item)
+        self.table_inspire_store.append([item['doi'], str(item['title']), str(item['date'])])
         try:
             date = str2date(item['date'])
             self.stat_box_inspire.fill(date.year)
@@ -466,14 +467,18 @@ class MyWindow(Gtk.Window):
         if not index_selected[1]:
             return
         doi = self.table_diff_store[index_selected[1][0][0]][0]
-        new_window = WindowDoi(doi=doi, institute="Milan U.", additional_authors=self.additional_authors)
+        new_window = WindowDoi(doi=doi, institute="Milan U.",
+                               additional_authors=self.additional_authors,
+                               no_links=self.no_links)
         new_window.show_all()
 
 
 def app_main(args):
     win = MyWindow(air_file=args.air_file,
                    inspire_file=args.inspire_file,
-                   additional_authors=args.add_author)
+                   additional_authors=args.add_author,
+                   no_links=args.no_links
+                   )
     win.connect("destroy", Gtk.main_quit)
     win.show_all()
 
@@ -485,6 +490,7 @@ def main():
     parser.add_argument('--air-file', help='txt file with air entries')
     parser.add_argument('--inspire-file', help='txt file with inspire entries')
     parser.add_argument('--add-author', nargs='*', help='add authors to the list. Use format: "Surname, Name"')
+    parser.add_argument('--no-links', action='store_true')
     args = parser.parse_args()
 
     import threading

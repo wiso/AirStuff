@@ -16,15 +16,15 @@ def get_eid_from_doi(doi):
                              'apiKey': API_KEY})
     json = r.json()
     entries = json['search-results']['entry']
-    
+
     if len(entries) == 0:
-        logger.warning("cannot find scopus from doi %s", doi)
+        logger.warning("cannot find scopus from doi %s with query %s", doi, r.url)
         return None
     if len(entries) == 1 and 'error' in entries[0]:
-        logger.warning("cannot find scopus from doi %s", doi)
+        logger.warning("cannot find scopus from doi %s with query %s", doi, r.url)
         return None
     if len(entries) != 1:
-        logger.warning('multiple results from doi %s', doi)
+        logger.warning('multiple results from doi %s with query %s', doi, r.url)
         return None
     return entries[0]['eid']
 
@@ -32,3 +32,4 @@ def get_eid_from_doi(doi):
 if __name__ == '__main__':
     print(get_eid_from_doi('10.1088/1748-0221/14/06/P06012'))
     print(get_eid_from_doi('10.1016/j.physletb.2011.11.010'))
+    print(get_eid_from_doi('10.1007/JHEP10(2020)062'))
