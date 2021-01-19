@@ -206,7 +206,7 @@ class WindowDoi(Gtk.Window):
 
 
 def app_main(doi=None, institute=None, no_links=False):
-    win = WindowDoi(doi, institute, no_links)
+    win = WindowDoi(doi, institute, no_links=no_links)
     win.connect("destroy", Gtk.main_quit)
     win.show_all()
 
@@ -214,7 +214,7 @@ def app_main(doi=None, institute=None, no_links=False):
 if __name__ == '__main__':
     import argparse
 
-    example = 'example: air_info.py 10.1140/epjc/s10052-018-6374-z --institute "Milan U."'
+    example = 'example: air_info.py "10.1007/JHEP11(2020)005" --institute "Milan U."'
     parser = argparse.ArgumentParser(description='Insert information on air', epilog=example)
     parser.add_argument("doi", nargs='?', default=None)
     parser.add_argument('--institute')

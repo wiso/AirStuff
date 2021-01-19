@@ -81,6 +81,11 @@ def fix_info(info):
     date = '?'
     if 'imprint' in metadata and metadata['imprint'] is not None and 'date' in metadata['imprint']:
         date = metadata['imprint']['date']
+    if 'imprint' in metadata and isinstance(metadata['imprint'], list):
+        if len(metadata['imprint']) == 1:
+            date = metadata['imprint'][0]['date']
+        else:
+            logger.warning("more than one data in imprint info: %s", metadata['imprint'])
     elif 'prepublication' in metadata and metadata['prepublication'] is not None and 'date' in metadata['prepublication']:
         date = metadata['prepublication']['date']
     else:
